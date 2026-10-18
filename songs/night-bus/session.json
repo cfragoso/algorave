@@ -1,63 +1,64 @@
 {
   "id": "night-bus",
-  "name": "Night Bus \u00b7 full arrangement",
+  "name": "Night Bus · full arrangement",
   "bpm": 134,
   "tracks": [
     {
       "id": "kick",
       "column": 1,
-      "code": "(() => {\n  const song = (...parts) => arrange(...parts.map((part, i) => [[8,16,16,8,8,24,16][i], part]));\nconst kick = s(\"bd*4\").bank('tr909').gain(0.65);\nconst kickDrop = s(\"<bd*4 [bd bd bd [bd bd]]>\")\n  .bank('tr909').gain(0.62);\nreturn song(kick, kick, kick, silence, silence, kickDrop, kick);\n})()",
+      "code": "song(kick, kick, kick, silence, silence, kickDrop, kick)",
       "sound": null,
       "enabled": true
     },
     {
       "id": "clap",
       "column": 2,
-      "code": "(() => {\n  const song = (...parts) => arrange(...parts.map((part, i) => [[8,16,16,8,8,24,16][i], part]));\nconst clap = s(\"~ cp ~ cp\").bank('tr909').gain(0.28);\nconst clapFill = stack(\n  clap,\n  s(\"<~ ~ ~ [~ ~ sd sd]>\").bank('tr909').gain(0.12),\n);\nconst buildRoll = s(\"<sd*4 sd*4 sd*8 sd*8 sd*8 sd*16 sd*16 sd*16>\")\n  .bank('tr909').gain(0.16);\nreturn song(silence, clap, clapFill, silence, buildRoll, clapFill, clap);\n})()",
+      "code": "song(silence, clap, clapFill, silence, buildRoll, clapFill, clap)",
       "sound": null,
       "enabled": true
     },
     {
       "id": "closed_hats",
       "column": 3,
-      "code": "(() => {\n  const song = (...parts) => arrange(...parts.map((part, i) => [[8,16,16,8,8,24,16][i], part]));\nconst hats = s(\"hh*8\").bank('tr909').gain(\"0.12 0.07\");\nconst hatsFast = s(\"hh*16\").bank('tr909')\n  .gain(\"0.12 0.04 0.08 0.04\");\nreturn song(hats, hats, hatsFast, silence, hats, hatsFast, hats);\n})()",
+      "code": "song(hats, hats, hatsFast, silence, hats, hatsFast, hats)",
       "sound": null,
       "enabled": true
     },
     {
       "id": "percussion",
       "column": 4,
-      "code": "(() => {\n  const song = (...parts) => arrange(...parts.map((part, i) => [[8,16,16,8,8,24,16][i], part]));\nconst openHats = s(\"~ oh ~ oh ~ oh ~ oh\").bank('tr909')\n  .gain(0.12).cut(4);\nconst percussion = stack(\n  openHats,\n  s(\"~ ~ rim ~ ~ rim ~ ~\").bank('tr909').gain(0.10),\n);\nreturn song(\n  silence, openHats, percussion, silence, openHats, percussion, openHats,\n);\n})()",
+      "code": "song(\n  silence, openHats, percussion, silence, openHats, percussion, openHats,\n)",
       "sound": null,
       "enabled": true
     },
     {
       "id": "bass",
       "column": 5,
-      "code": "(() => {\n  const song = (...parts) => arrange(...parts.map((part, i) => [[8,16,16,8,8,24,16][i], part]));\nconst bass = note(\"~ e2 ~ e2 ~ e2 ~ <e2 g2 b1 d2>\")\n  .s(\"sawtooth\").attack(0.005).decay(0.12).sustain(0).release(0.06)\n  .lpf(650).lpq(1).gain(0.19);\nconst bassDrop = note(\"~ e2 [~ e2] e2 ~ <g2 e2> ~ <d2 b1>\")\n  .s(\"sawtooth\").attack(0.005).decay(0.10).sustain(0).release(0.05)\n  .lpf(900).lpq(1.5).gain(0.18);\nreturn song(silence, bass, bass, silence, silence, bassDrop, bass);\n})()",
+      "code": "song(silence, bass, bass, silence, silence, bassDrop, bass)",
       "sound": null,
       "enabled": true
     },
     {
       "id": "lead",
       "column": 6,
-      "code": "(() => {\n  const song = (...parts) => arrange(...parts.map((part, i) => [[8,16,16,8,8,24,16][i], part]));\nconst acid = note(\"e3 ~ e3 g3 b3 ~ d4 b3 e3 ~ g3 e3 d3 ~ b2 d3\")\n  .s(\"sawtooth\").attack(0.005).decay(0.09).sustain(0).release(0.04)\n  .lpf(\"<700 1100 1700 2400>\").lpq(3).gain(0.09);\nreturn song(silence, silence, acid, silence, acid, acid, silence);\n})()",
+      "code": "song(silence, silence, acid, silence, acid, acid, silence)",
       "sound": null,
       "enabled": true
     },
     {
       "id": "chords",
       "column": 7,
-      "code": "(() => {\n  const song = (...parts) => arrange(...parts.map((part, i) => [[8,16,16,8,8,24,16][i], part]));\nconst stabs = note(\"<[e3,g3,b3] [e3,g3,b3] [d3,f#3,a3] [d3,f#3,a3]>\")\n  .struct(\"~ x ~ ~ ~ x ~ ~\").s(\"triangle\")\n  .attack(0.01).decay(0.22).sustain(0).release(0.15)\n  .room(0.3).gain(0.10);\nconst pad = note(\"<[e3,g3,b3] [d3,f#3,a3]>\").slow(4).s(\"triangle\")\n  .attack(0.6).decay(0.4).sustain(0.5).release(1.2)\n  .room(0.5).gain(0.07);\nreturn song(silence, silence, stabs, pad, pad, stabs, silence);\n})()",
+      "code": "song(silence, silence, stabs, pad, pad, stabs, silence)",
       "sound": null,
       "enabled": true
     },
     {
       "id": "vocals",
       "column": 8,
-      "code": "(() => {\n  const song = (...parts) => arrange(...parts.map((part, i) => [[8,16,16,8,8,24,16][i], part]));\nconst voice = s(\"<[~ nightvox:0 ~ ~] [~ ~ nightvox:1 ~] [~ nightvox:2 ~ ~] [~ ~ ~ nightvox:4]>\")\n  .gain(0.20).hpf(300).room(0.25);\nconst voiceBreak = s(\"nightvox:0 ~ nightvox:1 ~ nightvox:2 ~ nightvox:3 ~\")\n  .slow(4).gain(0.20).hpf(300).room(0.4);\nreturn song(\n  silence, silence, voice, voiceBreak, voiceBreak, voice, silence,\n);\n})()",
+      "code": "song(\n  silence, silence, voice, voiceBreak, voiceBreak, voice, silence,\n)",
       "sound": null,
       "enabled": true
     }
-  ]
+  ],
+  "code": "// NIGHT BUS · 134 BPM · E minor\n// Ctrl/Cmd+Enter updates this score while the MIDI mixer stays connected.\nsetcpm(134 / 4);\n\n// Each cycle = one four-beat bar. Every part shares this 96-bar timeline.\n// Intro 8 | groove 16 | main 16 | breakdown 8 | build 8 | drop 24 | outro 16\n// The arrangement loops after approximately 2 minutes 52 seconds.\nfunction song(intro, groove, main, breakdown, build, drop, outro) {\n  return arrange(\n    [8, intro], [16, groove], [16, main], [8, breakdown],\n    [8, build], [24, drop], [16, outro],\n  );\n}\n\n// 1 — Four-to-the-floor kick, with a more urgent drop variation.\nconst kick = s(\"bd*4\").bank('tr909').gain(0.65);\nconst kickDrop = s(\"<bd*4 [bd bd bd [bd bd]]>\")\n  .bank('tr909').gain(0.62);\nkick$: song(kick, kick, kick, silence, silence, kickDrop, kick);\n\n// 2 — Backbeat clap, occasional snare embellishment, build roll.\nconst clap = s(\"~ cp ~ cp\").bank('tr909').gain(0.28);\nconst clapFill = stack(\n  clap,\n  s(\"<~ ~ ~ [~ ~ sd sd]>\").bank('tr909').gain(0.12),\n);\nconst buildRoll = s(\"<sd*4 sd*4 sd*8 sd*8 sd*8 sd*16 sd*16 sd*16>\")\n  .bank('tr909').gain(0.16);\nclap$: song(silence, clap, clapFill, silence, buildRoll, clapFill, clap);\n\n// 3 — Closed hats: eighth notes become accented sixteenth notes.\nconst hats = s(\"hh*8\").bank('tr909').gain(\"0.12 0.07\");\nconst hatsFast = s(\"hh*16\").bank('tr909')\n  .gain(\"0.12 0.04 0.08 0.04\");\nhats$: song(hats, hats, hatsFast, silence, hats, hatsFast, hats);\n\n// 4 — Offbeat open hats and a quiet syncopated rim.\nconst openHats = s(\"~ oh ~ oh ~ oh ~ oh\").bank('tr909')\n  .gain(0.12).cut(4);\nconst percussion = stack(\n  openHats,\n  s(\"~ ~ rim ~ ~ rim ~ ~\").bank('tr909').gain(0.10),\n);\npercussion$: song(\n  silence, openHats, percussion, silence, openHats, percussion, openHats,\n);\n\n// 5 — Short offbeat bass: space for the kick on every beat.\nconst bass = note(\"~ e2 ~ e2 ~ e2 ~ <e2 g2 b1 d2>\")\n  .s(\"sawtooth\").attack(0.005).decay(0.12).sustain(0).release(0.06)\n  .lpf(650).lpq(1).gain(0.19);\nconst bassDrop = note(\"~ e2 [~ e2] e2 ~ <g2 e2> ~ <d2 b1>\")\n  .s(\"sawtooth\").attack(0.005).decay(0.10).sustain(0).release(0.05)\n  .lpf(900).lpq(1.5).gain(0.18);\nbass$: song(silence, bass, bass, silence, silence, bassDrop, bass);\n\n// 6 — Resonant acid-style lead. Top knob becomes its filter when MIDI is on.\nconst acid = note(\"e3 ~ e3 g3 b3 ~ d4 b3 e3 ~ g3 e3 d3 ~ b2 d3\")\n  .s(\"sawtooth\").attack(0.005).decay(0.09).sustain(0).release(0.04)\n  .lpf(\"<700 1100 1700 2400>\").lpq(3).gain(0.09);\nacid$: song(silence, silence, acid, silence, acid, acid, silence);\n\n// 7 — Minor chord stabs and an airy breakdown pad.\nconst stabs = note(\"<[e3,g3,b3] [e3,g3,b3] [d3,f#3,a3] [d3,f#3,a3]>\")\n  .struct(\"~ x ~ ~ ~ x ~ ~\").s(\"triangle\")\n  .attack(0.01).decay(0.22).sustain(0).release(0.15)\n  .room(0.3).gain(0.10);\nconst pad = note(\"<[e3,g3,b3] [d3,f#3,a3]>\").slow(4).s(\"triangle\")\n  .attack(0.6).decay(0.4).sustain(0.5).release(1.2)\n  .room(0.5).gain(0.07);\nchords$: song(silence, silence, stabs, pad, pad, stabs, silence);\n\n// 8 — Spoken count / vocal chops; not a sung verse.\nconst voice = s(\"<[~ nightvox:0 ~ ~] [~ ~ nightvox:1 ~] [~ nightvox:2 ~ ~] [~ ~ ~ nightvox:4]>\")\n  .gain(0.20).hpf(300).room(0.25);\nconst voiceBreak = s(\"nightvox:0 ~ nightvox:1 ~ nightvox:2 ~ nightvox:3 ~\")\n  .slow(4).gain(0.20).hpf(300).room(0.4);\nvocals$: song(\n  silence, silence, voice, voiceBreak, voiceBreak, voice, silence,\n);\n\n"
 }

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { patchTrack, validateSong } from './model.js';
+import {withSource, replaceSource} from './public/source.js';
 
 const appDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(appDir);
@@ -17,18 +18,18 @@ const equal = (a, b) => {
   return x.length === y.length && timingSafeEqual(x, y);
 };
 
-export async function createControlServer({token = '', timeoutMs = 10000} = {}) {
+export async function createControlServer({token = '', timeoutMs = 10000, initialSong, initialRevision = 0} = {}) {
   const songs = new Map();
   for (const name of await readdir(path.join(root, 'songs'))) {
     try {
       const song = validateSong(JSON.parse(await readFile(path.join(root, 'songs', name, 'session.json'), 'utf8')));
-      songs.set(song.id, song);
+      songs.set(song.id, withSource(song));
     } catch (error) {
       if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error;
     }
   }
-  let song = structuredClone(songs.get('live-set'));
-  let revision = 0, player = null, pending = null, playback = false;
+  let song = initialSong ? withSource(validateSong(initialSong)) : structuredClone(songs.get('live-set'));
+  let revision = initialRevision, player = null, pending = null, playback = false;
   const jobs = new Map();
   const cookie = randomBytes(32).toString('hex');
   const ws = new WebSocketServer({noServer: true, maxPayload: 256000});
@@ -85,6 +86,12 @@ export async function createControlServer({token = '', timeoutMs = 10000} = {}) 
         if (!authenticated(req)) return json(res, 401, {error: 'API token required'});
         if (req.method === 'GET' && url.pathname === '/api/state') return json(res, 200, state());
         if (req.method === 'GET' && url.pathname === '/api/songs') return json(res, 200, [...songs.values()]);
+        if (req.method === 'POST' && url.pathname === '/api/code') {
+          const input = await body(req);
+          if (input.revision !== revision) return json(res, 409, {error: 'Song changed since this draft started. Download your draft, then use current song before applying again.'});
+          const result = enqueue(validateSong(replaceSource(song, input.code)));
+          return json(res, result.status, result.body);
+        }
         if (req.method === 'GET' && url.pathname.startsWith('/api/jobs/')) {
           const job = jobs.get(url.pathname.slice(10));
           return json(res, job ? 200 : 404, job || {error: 'Unknown job'});
@@ -146,7 +153,11 @@ export async function createControlServer({token = '', timeoutMs = 10000} = {}) 
           finish('failed', 'Audio device released');
           broadcast();
         } else if (message.type === 'result' && client === player && pending && message.jobId === pending.id) {
-          if (message.ok === true) { song = pending.candidate; revision++; }
+          if (message.ok === true) {
+            song = pending.candidate;
+            if (Number.isFinite(message.bpm) && message.bpm >= 40 && message.bpm <= 250) song.bpm = message.bpm;
+            revision++;
+          }
           finish(message.ok === true ? 'applied' : 'failed', message.error || (message.ok === true ? undefined : 'Player rejected update'));
         } else if (message.type === 'playback' && client === player) {
           playback = message.playing === true;

@@ -36,6 +36,43 @@ Use Chrome for Web MIDI/SysEx. MIDI is optional if your browser lacks support.
 
 ## Build the music live
 
+The main view is a **full-song CodeMirror editor**, using Strudel's transpiler
+and the same audio player as the API. Edit the whole score, then click **Update
+song** or press **Ctrl+Enter / Cmd+Enter**. Updating preserves playback position
+and MIDI mixer state; press Play separately if playback is stopped.
+
+```js
+setcpm(134 / 4)
+const groove = "~ e2 ~ e2 ~ g2 ~ b1"
+
+kick$: s("bd*4").bank('tr909').gain(0.6)
+hats$: s("hh*8").bank('tr909').gain(0.08)
+bass$: note(groove).s('sawtooth').decay(0.12).sustain(0).gain(0.12)
+```
+
+Top-level named parts map to the verified MIDI columns: `kick$`, `clap$`,
+`closed_hats$` (or `hats$`), `percussion$` (or `open$`), `bass$`, `lead$` (or
+`acid$`), `chords$`, `vocals$`. Each known role can appear once. The app applies
+its mixer automatically; there is no need to paste the separate MIDI setup.
+Additional labels and anonymous `$:` parts can play but have no MIDI column or
+individual track API endpoint. An unlabeled final pattern also works.
+
+Shared variables, functions, double-quoted mini notation, top-level await,
+`samples(...)`, `all(...)` and `each(...)` are supported. Use single quotes for
+ordinary JS text, as in strudel.cc. The app loads the drum/vocal maps and synths;
+extra samples require your own loading code. This is a full-score editor, not an
+iframe of strudel.cc: its sidebar tools, inline sliders, scopes and animated
+pattern highlighting are not implemented. Tempo is staged with the new pattern
+so an invalid update does not change the running tempo.
+
+API song and track edits update this same score. Unapplied typing is kept as a
+draft. If another client changes the live song, applying an old draft is rejected
+rather than replacing the remote edit. **Download code** preserves your draft;
+**Use current song · discard draft** replaces it with the current live score.
+Drafts survive reload in this tab's session storage, but are not saved to GitHub.
+Downloading saves musical code; this app's MIDI mixer setup is separate.
+
+**Individual track controls** remains available in the expandable panel below.
 Load **Build it live**. Only channel 1 is initially in the set. Tick **In the set**
 on closed hats, then click that track's **Apply track**. Add clap, bass, percussion,
 lead, chords, and vocals over successive phrases. Edit each small pattern and
@@ -59,6 +96,7 @@ change bank or switch between a drum and a synth.
 | GET | `/api/songs` | Available structured songs |
 | GET | `/api/state` | Confirmed song, revision, player/playback status and pending job |
 | POST | `/api/songs/load` | Load `{ "id": "night-bus" }` or `live-set` |
+| POST | `/api/code` | Update the full score with `{ "code": "…", "revision": 3 }` |
 | PATCH | `/api/tracks/:id` | Change `code`, `sound` and/or `enabled` |
 | GET | `/api/jobs/:id` | Inspect `pending`, `applied` or `failed` |
 
@@ -96,8 +134,13 @@ The app loads `songs/*/session.json` at server startup. Each file contains a BPM
 eight tracks with fixed IDs/columns, JavaScript pattern expressions, an optional
 sound override and an enabled flag. The existing `song.js` and `score.js` remain
 standalone strudel.cc versions. These JSON files are an additional editable format.
-Expressions use ordinary JavaScript; there are no REPL `$:` labels or top-level
-setup statements. Both single and double quotes work for mini notation here.
+The optional `code` field contains the full Strudel score. For older manifests,
+the app generates a score from the eight tracks. Named expressions can reference
+shared variables defined in that score. Track API edits rewrite their named part
+without removing shared setup or other instruments. Commenting out/removing a
+named part disables that role; enabling it through the API appends its saved
+expression. API sound overrides appear as `.s(...)` in the score. Applying a
+manual full-score edit makes that code the new baseline for future API overrides.
 
 Live edits and mixer values are held **in memory**. Restarting the server restores
 the kick-only set; reloading the audio browser resets its mixer. To preserve a

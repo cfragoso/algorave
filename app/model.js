@@ -1,7 +1,9 @@
-export const trackIds = ['kick', 'clap', 'closed_hats', 'percussion', 'bass', 'lead', 'chords', 'vocals'];
+import {trackIds, withSource, rewriteTrack} from './public/source.js';
+export {trackIds};
 
 export function validateSong(song) {
   if (!song || typeof song.id !== 'string' || typeof song.name !== 'string' ||
+      (song.code !== undefined && (typeof song.code !== 'string' || song.code.length > 64000)) ||
       !Number.isFinite(song.bpm) || song.bpm < 40 || song.bpm > 250 ||
       !Array.isArray(song.tracks) || song.tracks.length !== 8) throw new Error('Invalid song');
   song.tracks.forEach((track, i) => {
@@ -21,7 +23,8 @@ export function patchTrack(song, id, patch) {
       !Object.keys(patch).length || Object.keys(patch).some(key => !['code', 'sound', 'enabled'].includes(key))) {
     throw new Error('Use code, sound and/or enabled');
   }
-  const candidate = structuredClone(song);
+  const candidate = withSource(song);
   Object.assign(candidate.tracks.find(track => track.id === id), patch);
-  return validateSong(candidate);
+  validateSong(candidate);
+  return validateSong(rewriteTrack(candidate, candidate.tracks.find(track => track.id === id)));
 }

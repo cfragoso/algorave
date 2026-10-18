@@ -18,7 +18,20 @@
   </section>
   <p id="device-status" aria-live="polite">Connecting to the control server…</p>
   <p id="status" role="status">Connecting…</p>
-  <main id="tracks"></main>
+  <main>
+    <section class="full-editor" aria-label="Live song editor">
+      <h2>Live song</h2>
+      <p>One shared Strudel score. Named parts map to your eight MIDI columns.</p>
+      <div class="toolbar">
+        <button id="evaluate" disabled>Update song · Ctrl/Cmd+Enter</button>
+        <button id="use-current">Use current song · discard draft</button>
+        <button id="download-code">Download code</button>
+      </div>
+      <p id="editor-status" aria-live="polite">Waiting for the shared song…</p>
+      <div id="song-editor"></div>
+    </section>
+    <details><summary>Individual track controls</summary><div id="tracks"></div></details>
+  </main>
   <footer>Audio plays on the enabled device. Other browsers control its tracks through the API.
     <a href="https://github.com/cfragoso/algorave">Project source</a> ·
     <a href="https://strudel.cc/technical-manual/project-start/">Powered by Strudel</a>

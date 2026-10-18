@@ -1,10 +1,13 @@
 import {initStrudel, getAudioContext} from '@strudel/web/web.mjs';
 import {createMixer} from './mixer.js';
 import {sessionControls} from './session-ui.js';
+import {compileSong} from './compile.js';
+import {createSongEditor} from './editor.js';
 
 const $ = id => document.getElementById(id);
 const status = message => { $('status').textContent = message; };
 let socket, engine, mixer, active = false, compiled, state, desiredSong;
+let applyQueue = Promise.resolve();
 const api = async (url, options = {}) => {
   const response = await fetch(url, {headers: {'Content-Type': 'application/json', ...options.headers}, ...options});
   const result = await response.json();
@@ -16,6 +19,10 @@ const send = value => {
   socket.send(JSON.stringify(value));
 };
 const showError = error => status(error.message);
+const editor = createSongEditor({
+  apply: (code, revision) => submit('/api/code', 'POST', {code, revision}),
+  report: showError,
+});
 
 function renderControls(next) {
   const controls = sessionControls({active, connected: socket?.readyState === WebSocket.OPEN, ...next});
@@ -32,6 +39,7 @@ function render(next) {
   const changed = !state || state.revision !== next.revision;
   state = next;
   renderControls(next);
+  editor.sync(next);
   if (!changed) return;
   $('tracks').replaceChildren();
   for (const track of next.song.tracks) {
@@ -54,27 +62,15 @@ function render(next) {
   status(`${next.song.name} · ${next.song.bpm} BPM · revision ${next.revision}`);
 }
 
-function compile(song) {
-  // This is deliberate live coding: authenticated operators can execute browser JS.
-  const patterns = song.tracks.map(track => {
-    let pattern = Function('"use strict"; return (' + track.code + '\n);')();
-    if (!pattern?.queryArc) throw new Error(track.id + ': expression must return a Strudel pattern');
-    if (track.sound) pattern = pattern.s(track.sound);
-    pattern.queryArc(0, 1); // Check syntax and a representative query before replacing the mix.
-    return track.enabled ? mixer.strip(track.column, pattern) : globalThis.silence;
-  });
-  const pattern = globalThis.stack(...patterns);
-  pattern.queryArc(0, 1);
-  return pattern;
-}
-
-async function applySong(song) {
-  const candidate = compile(song); // A failed expression leaves the current pattern in place.
+async function applySong(song, connection) {
+  const {pattern: candidate, bpm} = await compileSong(song, mixer);
+  if (!active || socket !== connection || connection.readyState !== WebSocket.OPEN) throw new Error('Audio device was released or disconnected');
   const wasPlaying = engine.scheduler.started;
-  engine.setCps(song.bpm / 240);
+  engine.setCps(bpm / 240);
   await engine.setPattern(candidate, wasPlaying);
   compiled = candidate;
   desiredSong = song;
+  return bpm;
 }
 
 async function initEngine() {
@@ -122,6 +118,7 @@ async function connect() {
   $('songs').replaceChildren(...songs.map(song => new Option(song.name, song.id)));
   socket?.close();
   socket = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`);
+  const connection = socket;
   let lastMessage = Date.now();
   const watchdog = setInterval(() => {
     if (Date.now() - lastMessage < 15000) return;
@@ -134,16 +131,19 @@ async function connect() {
     if (message.type === 'state') render(message);
     if (message.type === 'error') { active = false; if (state) render(state); showError(new Error(message.error)); }
     if (message.type === 'sync' || message.type === 'apply') {
-      try {
-        if (!active) throw new Error('Audio device is not enabled');
-        await applySong(message.song);
-        if (message.type === 'apply') send({type: 'result', jobId: message.jobId, ok: true});
-        else status('Audio device ready · press Play');
-      } catch (error) {
-        if (message.type === 'apply') send({type: 'result', jobId: message.jobId, ok: false, error: error.message});
-        else { send({type: 'release'}); active = false; render(state); }
-        showError(error);
-      }
+      applyQueue = applyQueue.catch(() => {}).then(async () => {
+        try {
+          if (!active || socket !== connection) throw new Error('Audio device is not enabled');
+          const bpm = await applySong(message.song, connection);
+          if (message.type === 'apply') send({type: 'result', jobId: message.jobId, ok: true, bpm});
+          else status('Audio device ready · press Play');
+        } catch (error) {
+          if (socket !== connection || connection.readyState !== WebSocket.OPEN) return;
+          if (message.type === 'apply') send({type: 'result', jobId: message.jobId, ok: false, error: error.message});
+          else { send({type: 'release'}); active = false; if (state) render(state); }
+          showError(error);
+        }
+      });
     }
   };
   socket.onclose = () => {
@@ -151,6 +151,7 @@ async function connect() {
     // Fail closed: avoid an uncommandable player continuing after a network split.
     engine?.stop(); mixer?.disconnect(); active = false;
     state = null; renderControls({playerConnected: false});
+    editor.disconnected();
     $('login').style.display = 'flex';
     status('Disconnected; playback stopped. Click Connect, then enable the audio device again.');
   };

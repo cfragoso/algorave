@@ -81,6 +81,26 @@ test('authentication, browser session cookies and origin checks', async t => {
   assert.equal((await request('/missing.js')).status, 404);
 });
 
+test('full editor updates share the track API and reject stale drafts', async t => {
+  const {request, connect} = await fixture(t);
+  const player = await connect(); player.send({type: 'claim'}); await player.wait('sync');
+  const code = `setcpm(140/4); const phrase = note("e2 g2"); kick$: s("bd*4"); bass$: phrase.s('sawtooth');`;
+  const edit = await request('/api/code', 'POST', {code, revision: 0});
+  assert.equal(edit.status, 202);
+  const command = await player.wait('apply');
+  assert.equal(command.song.code, code);
+  assert.equal(command.song.tracks[4].enabled, true);
+  player.send({type: 'result', jobId: edit.body.id, ok: true, bpm: 140});
+  for (let i = 0; i < 50 && (await request('/api/state')).body.revision === 0; i++) await new Promise(r => setTimeout(r, 5));
+  assert.equal((await request('/api/state')).body.song.bpm, 140);
+  assert.equal((await request('/api/code', 'POST', {code, revision: 0})).status, 409);
+  const patch = await request('/api/tracks/bass', 'PATCH', {sound: 'square'});
+  const updated = await player.wait('apply');
+  assert.match(updated.song.code, /const phrase/);
+  assert.match(updated.song.code, /\.s\('square'\)/);
+  player.send({type: 'result', jobId: patch.body.id, ok: false, error: 'Test rejection'});
+});
+
 test('disconnects and timeouts fail pending updates without advancing revision', async t => {
   const {request, connect} = await fixture(t, {timeoutMs: 80});
   const player = await connect(); player.send({type: 'claim'}); await player.wait('sync');

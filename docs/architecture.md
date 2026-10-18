@@ -14,6 +14,10 @@ their WebSocket URL when moving the bridge to another device.
 
 The [app](../app/README.md) adds an HTTP API and one designated browser audio player
 connected over WebSocket. Structured song presets live in `songs/*/session.json`.
+The full-song editor and API share a canonical Strudel score. Named top-level
+parts map to the eight MIDI roles; AST-based track updates preserve shared setup.
+The official transpiler handles mini notation. Draft revisions prevent remote
+updates from silently overwriting a performer's unfinished edits.
 It loads songs, replaces track expressions or sounds, and preserves the local MIDI
 mix. Writes are acknowledged by the player; failed evaluations retain the previous
 confirmed song. Authentication is required for a server bound to a network interface.
