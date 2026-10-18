@@ -6,7 +6,7 @@ import {javascript} from '@codemirror/lang-javascript';
 import {HighlightStyle, syntaxHighlighting} from '@codemirror/language';
 import {tags} from '@lezer/highlight';
 
-export function createSongEditor({apply, report}) {
+export function createSongEditor({apply, report, storageKey='algorave-code-draft'}) {
   let current, baseRevision, dirty = false, submitted, restoring = false;
   let highlightKey = '';
   const setHighlights = StateEffect.define();
@@ -45,7 +45,7 @@ export function createSongEditor({apply, report}) {
         highlightKey = '';
         if (restoring) return;
         dirty = view.state.doc.toString() !== current?.song.code;
-        sessionStorage.setItem('algorave-code-draft', JSON.stringify({code: view.state.doc.toString(), revision: baseRevision}));
+        sessionStorage.setItem(storageKey, JSON.stringify({code: view.state.doc.toString(), revision: baseRevision}));
         updateNote();
       }),
       EditorView.theme({
@@ -78,7 +78,7 @@ export function createSongEditor({apply, report}) {
   document.getElementById('use-current').onclick = () => {
     if (!current) return;
     setCode(current.song.code); dirty = false; baseRevision = current.revision; submitted = undefined;
-    sessionStorage.removeItem('algorave-code-draft'); updateNote();
+    sessionStorage.removeItem(storageKey); updateNote();
   };
   document.getElementById('download-code').onclick = () => {
     const url = URL.createObjectURL(new Blob([view.state.doc.toString()], {type: 'text/javascript'}));
@@ -103,7 +103,9 @@ export function createSongEditor({apply, report}) {
       current = next;
       if (initial) {
         try {
-          const draft = JSON.parse(sessionStorage.getItem('algorave-code-draft'));
+          const saved=sessionStorage.getItem(storageKey) || (storageKey==='algorave-code-draft-A'?sessionStorage.getItem('algorave-code-draft'):null);
+          const draft = JSON.parse(saved);
+          if(saved && storageKey==='algorave-code-draft-A'){sessionStorage.setItem(storageKey,saved);sessionStorage.removeItem('algorave-code-draft');}
           if (draft?.code && draft.code !== next.song.code) {
             setCode(draft.code); dirty = true; baseRevision = draft.revision;
           }
@@ -114,7 +116,7 @@ export function createSongEditor({apply, report}) {
       }
       if (!dirty || (submitted === next.song.code && view.state.doc.toString() === submitted)) {
         setCode(next.song.code); baseRevision = next.revision; dirty = false; submitted = undefined;
-        sessionStorage.removeItem('algorave-code-draft');
+        sessionStorage.removeItem(storageKey);
       }
       updateNote();
       if (!next.playback) this.highlight();

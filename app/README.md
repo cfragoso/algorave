@@ -1,8 +1,9 @@
 # Algorave app and control API
 
-A browser plays Strudel locally and connects to an HTTP/WebSocket control server.
-The Launch Control XL connects to the **audio browser**, alongside the audio output.
-Another browser or program can load songs and edit tracks through the server.
+A browser runs two independent Strudel decks, A and B, feeding one main stereo
+mixer. A shared song browser loads either deck. One lighting gateway and an
+HTTP/WebSocket API control the whole session. The Launch Control XL connects to
+the audio browser and targets the selected deck. Other browsers act as remote controls.
 
 ## Start on your laptop
 
@@ -15,19 +16,21 @@ npm run build
 npm start
 ```
 
-Open <http://127.0.0.1:3000>. Click **Enable audio device**, then **Play**.
-The initial set is just the kick. Select **Night Bus** and click **LOAD ▸**
-for the full arrangement. Connect MIDI separately with **Connect MIDI**;
+Open <http://127.0.0.1:3000>. Click **Enable audio device** once to prepare both
+decks. Select **Night Bus** in the shared browser and click **Load deck A ↗**.
+Select **South African awakening** and click **Load deck B ↗**. Press **Play**
+in either deck when ready. Each initially contains the kick-only live set.
+Choose **Deck A** or **Deck B** beside **Connect MIDI** to target that deck;
 audio works without MIDI. Retain the hardware template used during mapping.
 On restart, `npm start` is enough unless dependencies or browser code changed.
 Browser code changes require `npm run build` and a page reload.
 
-Only one browser tab owns audio at a time. The message below the buttons shows
+Only one main studio tab owns the audio session at a time. The message below the buttons shows
 whether this tab is the audio player or a remote controller. If Chrome shows
 **Audio active elsewhere**, close the player in the other browser (including
 the in-app browser panel), or click **Release audio device** in that player.
-Then click **Enable audio device** in Chrome. Play, Stop, MIDI and Reset mix
-are available only in the audio player; song and track edits also work remotely.
+Then click **Enable audio device** in Chrome. Transport, song edits and the main
+mixer work remotely; physical MIDI connects only in the audio browser.
 Releasing stops playback and detaches MIDI without changing the server's song.
 
 To recover a silent mixer, use **Reset mix**. Check the computer's selected
@@ -59,19 +62,49 @@ are the software mix: the physical positions become known when a control sends
 a MIDI message. Reset mix restores the audible defaults. Instrument activity is
 derived from scheduled events; it is separate from the measured master level.
 
-Expand **Lighting connection**, enter your bridge URL (default
-`ws://127.0.0.1:8765`), and click **Connect lights**. Start the updated bridge using
-the [lighting instructions](../lights/README.md). The eight bars show the last
-successfully written DMX frame, refreshed at up to 10 Hz. This is reported output,
-not optical feedback from the lamps. Preview colours are scaled to the bridge's
-brightness limit for legibility; hover a bar for raw DMX RGB. Disconnection marks
-colours stale. `--dry-run` is explicitly labelled **SIMULATION**. Connecting the
-monitor does not send lighting commands or keep the lighting watchdog alive.
-Beat-driven lighting patterns still run separately through the bridge.
+The central **Light array** is the single lighting controller. Start the updated
+[bridge](../lights/README.md), then click **Connect bridge**. Its endpoint is
+configured on the server with `ALGORAVE_LIGHT_URL` (default
+`ws://127.0.0.1:8765`), and its optional secret with `ALGORAVE_LIGHT_TOKEN`.
+The eight previews show successfully written DMX RGB values, scaled to the
+bridge limit. They report output frames, not optical feedback. Simulation is
+labelled; disconnected/stale colours are unconfirmed. **Send colour pulse**
+queues the selected bar(s); the bridge's usual two-second watchdog expires it.
+**BLACKOUT** clears output immediately. Monitoring alone does not reset the watchdog.
+
+### Two-deck audio and main mixer
+
+A and B each have a separate Strudel instance, scheduler, score, revision,
+effects, waveform history, editor draft and eight-instrument mixer. They use
+isolated same-origin frames so Strudel's global state cannot overwrite the other
+deck. Each engine sends stereo audio through a local MediaStream into the parent
+master AudioContext. The streams stay on this computer; the API carries no audio.
+This adds browser stream buffering, so measure latency on your performance machine.
+Normal Strudel WebAudio output is disconnected from its direct speaker path.
+
+Signal flow: deck engine → stereo stream → low/mid/high EQ → channel fader →
+equal-power crossfader → master volume → dynamics limiter → selected output.
+Channel meters are after EQ/fader and before crossfade. The measured master
+waveform/meter is after the limiter. EQ ranges −24 to +12 dB at 200 Hz, 1 kHz and
+4 kHz. The centre crossfade gives each channel −3 dB; endpoints exclude the other.
+The limiter is a dynamics compressor, not a guarantee against every possible peak.
+**Choose output…** uses browser audio-output selection where supported. Otherwise
+use the output menu or the computer's audio settings. Both decks share that output.
+
+Deck clocks and tempo are independent. Set matching BPM manually and start/cue
+with care: automatic beat sync, headphone cue routing, scratch and quantized song
+loading are not implemented. Pause/stop/load on A does not stop B. Song edits keep
+the current deck clock. Stop/Cue resets only that deck.
+
+MIDI controls and LEDs target exactly one selected deck at a time. Switching
+A/B detaches the old listener and refreshes LEDs from the new deck's software
+mix; it does not move physical faders. Knobs/faders jump to their physical values
+when moved (no pickup/soft takeover yet). The central crossfader/channel/master
+controls are on screen/API; the existing hardware mapping is unchanged.
 
 ## Build the music live
 
-The main view is a **full-song CodeMirror editor**, using Strudel's transpiler
+Each deck has a **full-song CodeMirror editor**, using Strudel's transpiler
 and the same audio player as the API. Edit the whole score, then click **Update
 song** or press **Ctrl+Enter / Cmd+Enter**. Updating preserves playback position
 and MIDI mixer state; press Play separately if playback is stopped.
@@ -140,6 +173,50 @@ tracks, the bank in the expression still applies. Change the expression to
 change bank or switch between a drum and a synth.
 
 ## HTTP API
+
+All musical controls have explicit deck routes. Use uppercase `A` or `B`.
+Legacy `/api/state`, `/api/code`, `/api/tempo`, `/api/tracks/:id` and
+`/api/songs/load` remain aliases for **A**. Jobs are acknowledged by the audio
+browser; HTTP 202 means queued, not applied. Deck jobs are independent; only one
+job per deck and one master-mixer job can be pending at a time.
+
+| Method | Endpoint | Payload / result |
+| --- | --- | --- |
+| GET | `/api/session/state` | Both decks, main mixer, fresh master telemetry, lights |
+| GET | `/api/decks/A/state` | Deck A song, revision, playback and telemetry |
+| POST | `/api/decks/B/songs/load` | `{ "id": "south-african-awakening" }` |
+| POST | `/api/decks/A/code` | `{ "code": "…", "revision": 0 }` |
+| PATCH | `/api/decks/B/tracks/bass` | `{ "sound": "square" }` or code/enabled |
+| PATCH | `/api/decks/A/tempo` | `{ "bpm": 122 }` |
+| POST | `/api/decks/B/transport` | `{ "action": "play" }`; also pause, cue, stop |
+| PATCH | `/api/decks/A/mixer` | `{ "column": 1, "parameter": "volume", "value": 0.65 }` or `{ "reset": true }` |
+| GET/PATCH | `/api/mixer` | Main mixer; partial patches shown below |
+| GET | `/api/lights/state` | Bridge connection, freshness and last written frame |
+| POST | `/api/lights/connect` | `{}`; connects to server-configured endpoint |
+| POST | `/api/lights/disconnect` | `{}`; disconnects the shared gateway |
+| POST | `/api/lights/bar` | `{ "bar": 1, "rgb": [32, 12, 0], "exclusive": false }` |
+| POST | `/api/lights/blackout` | `{}` |
+
+```sh
+curl -X PATCH http://127.0.0.1:3000/api/mixer \
+  -H 'Content-Type: application/json' \
+  -d '{"crossfader":0.25,"master":0.7,"channels":{"A":{"volume":0.8,"low":-6},"B":{"volume":0.6}}}'
+```
+
+Master/crossfader/channel volume use 0–1; channel low/mid/high EQ use −24…12 dB.
+Optional `sinkId` selects a device already authorized in the audio browser.
+Lights return bridge acknowledgements (queued colour, immediate blackout), not
+song jobs or proof of light emission. Starting another light command client may
+conflict with gateway ownership; blackout always remains available to authenticated
+clients. Network auth/origin protections apply to every endpoint.
+
+WebSocket `/ws?scope=session` reports session state, tagged deck telemetry and
+`masterTelemetry`. `/ws?deck=A` and `/ws?deck=B` carry the respective deck protocol;
+`/ws` remains A. The main player holds an exclusive session lease, and its child
+decks claim using the lease's `ownerId`. Releasing/disconnecting the main player
+stops both children. An observer cannot publish player acknowledgements or meters.
+
+The following legacy examples target A:
 
 | Method | URL | Purpose |
 | --- | --- | --- |
@@ -213,8 +290,8 @@ The server schedules no notes and opens no audio/MIDI device. It can run in a
 container on a Pi/NUC while the browser handles timing and audio on another device.
 The physical audio interface remains connected to the audio computer and selected
 in its system/browser audio settings. Audio is not streamed over the WebSocket.
-Visuals and the existing lighting bridge are still separate; shared lighting-clock
-integration is a subsequent step.
+The lighting bridge remains a separate USB endpoint, reached through the API
+gateway. Shared beat-clock integration is a subsequent step.
 
 For a LAN server set `HOST=0.0.0.0` and `ALGORAVE_TOKEN` to a random secret of at
 least 24 characters. Browser clients enter that token in Connect; other clients

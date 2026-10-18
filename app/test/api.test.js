@@ -13,8 +13,8 @@ async function fixture(t, options = {}) {
     const res = await fetch(base + url, {method, headers: {'Content-Type': 'application/json', ...headers}, ...(data ? {body: JSON.stringify(data)} : {})});
     return {status: res.status, body: await res.json(), headers: res.headers};
   };
-  const connect = async headers => {
-    const client = new WebSocket(base.replace('http:', 'ws:') + '/ws', {headers});
+  const connect = async (headers, query = '') => {
+    const client = new WebSocket(base.replace('http:', 'ws:') + '/ws' + query, {headers});
     const messages = [];
     client.on('message', raw => messages.push(JSON.parse(raw)));
     await once(client, 'open');
@@ -126,4 +126,32 @@ test('disconnects and timeouts fail pending updates without advancing revision',
   second.client.close();
   await new Promise(r => setTimeout(r, 20));
   assert.equal((await request('/api/jobs/' + next.body.id)).body.status, 'failed');
+});
+
+test('two decks isolate songs, edits, transport, failures and telemetry; main mixer requires acknowledgement',async t=>{
+  const {request,connect}=await fixture(t);
+  const host=await connect(undefined,'?scope=session');host.send({type:'claim'});const lease=await host.wait('sync');
+  const a=await connect(undefined,'?deck=A'),b=await connect(undefined,'?deck=B'),outsider=await connect(undefined,'?deck=B');
+  outsider.send({type:'claim'});assert.match((await outsider.wait('error')).error,/Another/);
+  for(const player of [a,b]){player.send({type:'claim',ownerId:lease.ownerId});await player.wait('sync');}
+  const loadA=await request('/api/decks/A/songs/load','POST',{id:'night-bus'});
+  const loadB=await request('/api/decks/B/songs/load','POST',{id:'south-african-awakening'});
+  assert.equal(loadA.status,202);assert.equal(loadB.status,202);
+  assert.equal((await a.wait('apply')).song.id,'night-bus');assert.equal((await b.wait('apply')).song.id,'south-african-awakening');
+  a.send({type:'result',jobId:loadA.body.id,ok:true});b.send({type:'result',jobId:loadB.body.id,ok:true});
+  async function settled(id){for(let i=0;i<100;i++){const result=await request('/api/jobs/'+id);if(result.body.status!=='pending')return result.body;await new Promise(r=>setTimeout(r,5));}throw new Error('Job did not settle');}
+  await settled(loadA.body.id);await settled(loadB.body.id);
+  let session=(await request('/api/session/state')).body;
+  assert.equal(session.decks.A.song.id,'night-bus');assert.equal(session.decks.B.song.id,'south-african-awakening');
+  const edit=await request('/api/decks/B/tracks/bass','PATCH',{sound:'square'});await b.wait('apply');b.send({type:'result',jobId:edit.body.id,ok:false,error:'Invalid pattern'});await settled(edit.body.id);
+  assert.equal((await request('/api/decks/A/state')).body.revision,1);assert.equal((await request('/api/decks/B/state')).body.song.tracks[4].sound,null);
+  const play=await request('/api/decks/B/transport','POST',{action:'play'});assert.equal((await b.wait('command')).operation.action,'play');b.send({type:'result',jobId:play.body.id,ok:true,playing:true});await settled(play.body.id);
+  assert.equal((await request('/api/decks/B/state')).body.playback,true);assert.equal((await request('/api/decks/A/state')).body.playback,false);
+  const mix=await request('/api/mixer','PATCH',{crossfader:1,channels:{A:{volume:0}}});assert.equal(mix.status,202);assert.equal((await request('/api/mixer')).body.crossfader,.5);
+  const mixCommand=await host.wait('mixer');assert.equal(mixCommand.mixer.channels.A.volume,0);host.send({type:'result',jobId:mix.body.id,ok:true});await settled(mix.body.id);
+  assert.equal((await request('/api/mixer')).body.crossfader,1);
+  assert.equal((await request('/api/mixer','PATCH',{crossfader:2})).status,400);assert.equal((await request('/api/decks/C/state')).status,404);
+  b.send({type:'telemetry',revision:1,frame:{cycle:3,elapsed:6,playing:true}});const frame=await host.wait('telemetry');assert.equal(frame.deck,'B');
+  host.send({type:'release'});for(let i=0;i<100&&(await request('/api/decks/A/state')).body.playerConnected;i++)await new Promise(r=>setTimeout(r,5));
+  session=(await request('/api/session/state')).body;assert.equal(session.playerConnected,false);assert.equal(session.decks.A.playerConnected,false);assert.equal(session.decks.B.playback,false);
 });

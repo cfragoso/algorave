@@ -7,7 +7,7 @@ Start on one laptop; the lighting endpoint can later run on another device.
 
 | Folder | Contents |
 | --- | --- |
-| [app/](app/README.md) | Browser Strudel player, song/track API and Docker setup |
+| [app/](app/README.md) | Two Strudel decks, main mixer, unified music/lights API and Docker setup |
 | [songs/](songs/README.md) | Complete songs and small scores for live coding |
 | [vocals/](vocals/README.md) | Vocal sample manifest and a folder for your recordings |
 | [lights/](lights/README.md) | ENTTEC DMX USB PRO bridge, light tests, Strudel lighting patterns and Dockerfile |
@@ -16,7 +16,14 @@ Start on one laptop; the lighting endpoint can later run on another device.
 | [docs/](docs/README.md) | Restart instructions, performance plan and architecture notes |
 | [examples/](examples/README.md) | Small tests and clearly marked legacy examples |
 
-## Play the complete song
+## Play in the two-deck app
+
+Follow [app/README.md](app/README.md) to start the local studio. Enable audio once,
+load songs into A and B, and blend them with the main mixer and crossfader. Each
+deck has its own live editor. The Launch Control XL targets a selected deck;
+one light controller connects to the ENTTEC bridge through the shared API.
+
+## Play the complete song in strudel.cc
 
 1. Connect the Launch Control XL and select the same template used during mapping.
 2. Check your Mac's selected audio output and open [Strudel](https://strudel.cc) in Chrome.

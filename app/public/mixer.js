@@ -48,9 +48,9 @@ export function createMixer(mapping, ref) {
       if(['mute','solo'].includes(parameter))renderLEDs();
     },
     disconnect,
-    async connect() {
+    async connect(midiAccess = null) {
       disconnect();
-      access = await navigator.requestMIDIAccess({sysex: true});
+      access = midiAccess || await navigator.requestMIDIAccess({sysex: true});
       const bind = () => {
         input?.removeEventListener('midimessage', handler);
         input = [...access.inputs.values()].find(p => p.name === mapping.input_name && p.state === 'connected');

@@ -1,4 +1,4 @@
-import {initStrudel, getAudioContext, webaudioOutput, getSuperdoughAudioController} from '@strudel/web/web.mjs';
+import {initStrudel, getAudioContext, webaudioOutput, getSuperdoughAudioController, initAudio} from '@strudel/web/web.mjs';
 import {createMixer} from './mixer.js';
 import {sessionControls} from './session-ui.js';
 import {compileSong} from './compile.js';
@@ -8,13 +8,18 @@ import {createAudioMonitor} from './monitor.js';
 import {createPerformanceConsole} from './console.js';
 import {createLightsMonitor} from './lights-monitor.js';
 
+const deckId = new URLSearchParams(location.search).get('deck') === 'B' ? 'B' : 'A';
+const embedded = window.parent !== window;
+if(embedded){document.body.classList.add('embedded');document.querySelector('.panel-heading h1').innerHTML='DECK <span>'+deckId+'</span>';document.title='Deck '+deckId+' · Strudel';}
 const $ = id => document.getElementById(id);
 const status = message => { $('status').textContent = message; };
 let socket, engine, mixer, active = false, compiled, state, desiredSong;
 let applyQueue = Promise.resolve();
+let ready = false;
 let audioMonitor, elapsed = 0, beganAt = null, pausedCycle = 0;
 const activity = createActivityClock();
 const api = async (url, options = {}) => {
+  if(url.startsWith('/api/') && !['/api/songs','/api/session'].includes(url) && !url.startsWith('/api/jobs/'))url='/api/decks/'+deckId+url.slice(4);
   const response = await fetch(url, {headers: {'Content-Type': 'application/json', ...options.headers}, ...options});
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'Request failed');
@@ -26,16 +31,16 @@ const send = value => {
 };
 const showError = error => status(error.message);
 const deck = createPerformanceConsole({
-  onMix: (column, parameter, value) => { if (active && mixer) { mixer.set(column,parameter,value); deck.mixer(mixer.snapshot()); } },
+  onMix: (column, parameter, value) => {if(active && mixer){mixer.set(column,parameter,value);deck.mixer(mixer.snapshot());}},
   onTempo: bpm => submit('/api/tempo','PATCH',{bpm}),
   report: showError,
 });
-createLightsMonitor();
+if(!embedded)createLightsMonitor();
 fetch('/mapping.json').then(response=>response.json()).then(mapping=>deck.mixer({connected:false,ledConnected:false,
   values:Array.from({length:8},()=>({...mapping.software_startup_normalized})), received:[]})).catch(showError);
 const editor = createSongEditor({
   apply: (code, revision) => submit('/api/code', 'POST', {code, revision}),
-  report: showError,
+  report: showError, storageKey: 'algorave-code-draft-'+deckId,
 });
 function currentActivityFrame() {
   return engine?.scheduler.started && desiredSong && desiredSong.code === state?.song.code
@@ -70,6 +75,7 @@ function renderControls(next) {
   $('release').hidden = controls.releaseHidden;
   $('load').disabled = controls.loadDisabled;
   deck.state(next,active);
+  $('play').disabled=$('stop').disabled=$('cue').disabled=!next.playerConnected || !!next.pendingJob;
   $('device-status').textContent = controls.hint;
 }
 
@@ -118,6 +124,7 @@ async function initEngine() {
   const context = getAudioContext();
   await context.resume();
   if (engine) return;
+  await initAudio();
   engine = await initStrudel({
     audioContext: context,
     // The transpiler supplies positions for double-quoted mini notation.
@@ -125,6 +132,7 @@ async function initEngine() {
     // locations and would incorrectly highlight the beginning of the score.
     miniAllStrings: false,
     defaultOutput: (hap, deadline, duration, cps, time) => {
+      routeOutput();
       activity.schedule(hap, time, duration);
       return webaudioOutput(hap, deadline, duration, cps, time);
     },
@@ -147,9 +155,12 @@ async function initEngine() {
   });
   const mapping = await (await fetch('/mapping.json')).json();
   mixer = createMixer(mapping, globalThis.ref);
-  audioMonitor = createAudioMonitor(context,()=>getSuperdoughAudioController().output.destinationGain);
+  audioMonitor = createAudioMonitor(context,()=>{routeOutput();return getSuperdoughAudioController().output.destinationGain;});
+  routeOutput();
   deck.mixer(mixer.snapshot());
 }
+
+function routeOutput(){if(embedded && parent.algoraveSession?.audio)parent.algoraveSession.audio.attach(deckId,getSuperdoughAudioController().output.destinationGain);}
 
 async function submit(url, method, payload) {
   const job = await api(url, {method, body: JSON.stringify(payload)});
@@ -169,7 +180,7 @@ async function connect() {
   $('login').style.display = 'none';
   $('songs').replaceChildren(...songs.map(song => new Option(song.name, song.id)));
   socket?.close();
-  socket = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`);
+  socket = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws?deck=${deckId}`);
   const connection = socket;
   let lastMessage = Date.now();
   const watchdog = setInterval(() => {
@@ -185,16 +196,23 @@ async function connect() {
     if (message.type === 'telemetry' && !active && message.revision === state?.revision) deck.telemetry(message.frame);
     if (message.type === 'activity' && !active && message.revision === state?.revision) editor.highlight(message);
     if (message.type === 'error') { active = false; if (state) render(state); showError(new Error(message.error)); }
-    if (message.type === 'sync' || message.type === 'apply') {
+    if (message.type === 'sync' || message.type === 'apply' || message.type === 'command') {
       applyQueue = applyQueue.catch(() => {}).then(async () => {
         try {
           if (!active || socket !== connection) throw new Error('Audio device is not enabled');
+          if(message.type==='command'){
+            const op=message.operation;
+            if(op.type==='transport')await transport(op.action);
+            else if(op.type==='strip')mixer.set(op.column,op.parameter,op.value);
+            else if(op.type==='stripReset')mixer.reset();
+            send({type:'result',jobId:message.jobId,ok:true,playing:!!engine.scheduler.started});return;
+          }
           const bpm = await applySong(message.song, connection);
           if (message.type === 'apply') send({type: 'result', jobId: message.jobId, ok: true, bpm});
-          else status('Audio device ready · press Play');
+          else {ready=true;status('Audio device ready · press Play');}
         } catch (error) {
           if (socket !== connection || connection.readyState !== WebSocket.OPEN) return;
-          if (message.type === 'apply') send({type: 'result', jobId: message.jobId, ok: false, error: error.message});
+          if (message.type !== 'sync') send({type: 'result', jobId: message.jobId, ok: false, error: error.message});
           else { send({type: 'release'}); active = false; if (state) render(state); }
           showError(error);
         }
@@ -207,11 +225,12 @@ async function connect() {
     engine?.stop(); mixer?.disconnect(); active = false;
     deck.clear();
     elapsed=0;beganAt=null;pausedCycle=0;
-    state = null; renderControls({playerConnected: false});
+    ready=false;state = null; renderControls({playerConnected: false});
     editor.disconnected();
     $('login').style.display = 'flex';
     status('Disconnected; playback stopped. Click Connect, then enable the audio device again.');
   };
+  await new Promise((resolve,reject)=>{connection.addEventListener('open',resolve,{once:true});connection.addEventListener('error',()=>reject(new Error('Cannot connect to deck '+deckId)),{once:true});});
 }
 
 $('login').onsubmit = event => {
@@ -221,37 +240,41 @@ $('login').onsubmit = event => {
 };
 $('enable').onclick = async () => {
   $('enable').disabled = true;
-  try { status('Preparing audio and sample maps…'); await initEngine(); active = true; send({type: 'claim'}); }
+  try { ready=false;status('Preparing audio and sample maps…'); if(socket?.readyState!==WebSocket.OPEN)await connect();await initEngine(); active = true; send({type: 'claim',ownerId:embedded?parent.algoraveSession?.ownerId:undefined}); }
   catch (error) { active = false; $('enable').disabled = false; showError(error); }
 };
-$('play').onclick = async () => {
-  try {
-    if(engine.scheduler.started){
-      pausedCycle=Math.max(0,engine.scheduler.now());
-      if(beganAt!==null)elapsed+=getAudioContext().currentTime-beganAt;
-      beganAt=null; engine.pause();send({type:'playback',playing:false});status('Paused');return;
-    }
-    await getAudioContext().resume();
-    if (!compiled) throw new Error('Wait for audio device setup');
-    await engine.setPattern(compiled, true);
-    beganAt=getAudioContext().currentTime;
-    send({type: 'playback', playing: true}); status('Playing · ' + desiredSong.name);
-  } catch (error) { showError(error); }
-};
-function cue() { engine.stop();elapsed=0;beganAt=null;pausedCycle=0;send({type:'playback',playing:false});status('Cued · bar 1'); }
-$('stop').onclick = cue;
-$('cue').onclick = cue;
+async function transport(action){
+  if(action==='stop'||action==='cue'){
+    engine.stop();routeOutput();elapsed=0;beganAt=null;pausedCycle=0;send({type:'playback',playing:false});status('Cued · bar 1');return;
+  }
+  if(action==='pause'){
+    if(engine.scheduler.started){pausedCycle=Math.max(0,engine.scheduler.now());if(beganAt!==null)elapsed+=getAudioContext().currentTime-beganAt;beganAt=null;engine.pause();routeOutput();}
+    send({type:'playback',playing:false});status('Paused');return;
+  }
+  if(!engine.scheduler.started){await getAudioContext().resume();if(!compiled)throw new Error('Wait for audio setup');await engine.setPattern(compiled,true);routeOutput();beganAt=getAudioContext().currentTime;}
+  send({type:'playback',playing:true});status('Playing · '+desiredSong.name);
+}
+$('play').onclick=()=>submit('/api/transport','POST',{action:state.playback?'pause':'play'}).catch(showError);
+$('stop').onclick=$('cue').onclick=()=>submit('/api/transport','POST',{action:'cue'}).catch(showError);
 $('release').onclick = () => {
   engine?.stop();
   elapsed=0;beganAt=null;pausedCycle=0;
   mixer?.disconnect();
   if(mixer)deck.mixer(mixer.snapshot());
-  active = false;
-  send({type: 'release'});
+  active = false;ready=false;
+  if(socket?.readyState===WebSocket.OPEN)send({type: 'release'});
   if (state) renderControls(state);
   status('Audio device released. You can enable it in another browser now.');
 };
-$('reset').onclick = () => { mixer.reset(); status('Audible mix restored · mute and solo cleared'); };
-$('midi').onclick = () => mixer.connect().then(status).catch(showError);
+$('reset').onclick = () => submit('/api/mixer','PATCH',{reset:true}).catch(showError);
+$('midi').onclick = () => (embedded?parent.algoraveSession.connectMidi(deckId):mixer.connect()).then(status).catch(showError);
 $('load').onclick = () => submit('/api/songs/load', 'POST', {id: $('songs').value}).catch(showError);
 connect().catch(error => { $('login').style.display = 'flex'; showError(error); });
+
+window.algoraveDeck={
+  async enable(){await $('enable').onclick();for(let i=0;i<150;i++){if(ready)return;if(!active)throw new Error($('status').textContent);await new Promise(r=>setTimeout(r,100));}throw new Error('Deck '+deckId+' setup timed out');},
+  release(){if(active)$('release').onclick();},
+  connectMidi(access){if(!active)throw new Error('Enable audio first');return mixer.connect(access);},
+  disconnectMidi(){mixer?.disconnect();},
+};
+if(embedded){new ResizeObserver(()=>parent.postMessage({type:'deck-height',deck:deckId,height:Math.ceil(document.body.getBoundingClientRect().height)},location.origin)).observe(document.body);}
