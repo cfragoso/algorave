@@ -18,9 +18,15 @@ Requires Python 3.10–3.14. On Windows use `.venv\Scripts\python.exe` instead o
 
 Add this seed URL to Maltego using its transform-server/seed installation flow:
 
-**http://127.0.0.1:8081/seed**
+**https://127.0.0.1:8081/seed**
 
-Discovery includes all four custom entity definitions and the Algorave transform set. No manual entity creation or separate entity package is necessary with a client supporting the SDK v3 protocol. The HTTP endpoint is for a local client. Maltego Graph Browser requires trusted HTTPS; see the [SDK's HTTPS instructions](https://github.com/MaltegoTech/maltego-transforms#your-first-transform) for that deployment.
+Discovery includes all four custom entity definitions and the Algorave transform set. No manual entity creation or separate entity package is necessary with a client supporting the SDK v3 protocol. The service uses HTTPS by default. On first startup it generates a local self-signed certificate for `localhost` and `127.0.0.1` in ignored `.local/`, with a private key readable only by its owner. Existing certificates are retained across restarts. This does not install any certificate into your operating system or Maltego trust store.
+
+If you previously installed the HTTP seed, update or reinstall that integration using the HTTPS seed above so stored transform-server URLs are refreshed. Your Engine URL remains `http://127.0.0.1:3000`: that is the separate Algorave API endpoint.
+
+The client must trust the local certificate `.local/server.crt`. If Maltego offers a certificate acceptance prompt, verify it is this local certificate before accepting it. Otherwise import this certificate using the trust mechanism for your client. Browser clients also require browser/OS certificate trust; clicking through a browser warning alone may not permit background transform requests. See [Maltego certificate trust documentation](https://support.maltego.com/support/solutions/articles/15000062366-https-certificates-and-browser-trust).
+
+For an existing trusted certificate pair set both `ALGORAVE_TLS_CERT` and `ALGORAVE_TLS_KEY`. The generated certificate expires after 365 days; renew it deliberately and update client trust. Private keys must never be committed.
 
 Drag **Algorave Engine** from the Algorave palette category into a graph. Its default Engine URL is `http://127.0.0.1:3000`; its Identity can be any unique name, such as `studio-laptop`.
 
@@ -67,10 +73,12 @@ Edit `.env` in this directory, then restart only the Python service:
 | `ALGORAVE_API_URL` | `http://127.0.0.1:3000` | Algorave API base URL |
 | `ALGORAVE_TOKEN` | empty | Same API bearer token configured in the app |
 | `ALGORAVE_TRANSFORMS_PORT` | `8081` | Local Python service port |
+| `ALGORAVE_TLS_CERT` | generated `.local/server.crt` | TLS certificate PEM path |
+| `ALGORAVE_TLS_KEY` | generated `.local/server.key` | TLS private key PEM path |
 
 For a remote audio engine, set `ALGORAVE_API_URL` to its reachable address and set the Engine URL property to the same value. Returned entities carry this URL automatically. Requests are restricted to the configured engine, do not follow redirects and never store the token in graph entities. Keep `.env` private.
 
-The transform service binds to loopback. Run it on the same computer as your local Maltego client; it can communicate with an Algorave engine on another device. It is a development service with no incoming-client authentication; configure SDK authentication and trusted HTTPS before exposing it beyond your own computer.
+The transform service binds to loopback. Run it on the same computer as your local Maltego client; it can communicate with an Algorave engine on another device. It is a development service with no incoming-client authentication; configure SDK authentication and a trusted deployment certificate before exposing it beyond your own computer.
 
 ## Verify
 
@@ -78,6 +86,6 @@ The transform service binds to loopback. Run it on the same computer as your loc
 .venv/bin/python -m unittest -v
 ```
 
-Tests use a simulated control API, including separate deck routing, editable-property serialization, colour overlays, failed/pending jobs, stale component rejection, authentication errors and draft preservation. They do not change your live mix. Discovery endpoints are `/assets/entities` and `/transforms`.
+Tests also check certificate names, key permissions and certificate reuse. API tests use a simulated control API, including separate deck routing, editable-property serialization, colour overlays, failed/pending jobs, stale component rejection, authentication errors and draft preservation. They do not change your live mix. Discovery endpoints are `/assets/entities` and `/transforms`.
 
 The integration has been checked against the running Algorave API using read-only requests. Installation and rendering inside the Maltego desktop client still need to be verified on your client version.
