@@ -71,6 +71,16 @@ Returned engine, deck and song entities also carry explicit public image URLs as
 
 Rebuild the pack after entity-definition changes with `.venv/bin/python build_entity_pack.py`. Archive contents and mappings are tested; the final import/rendering step must be checked in the user's Desktop client.
 
+## Generate a song from a Phrase
+
+Run **Generate Song [Algorave]** on a standard `maltego.Phrase`. For example, use `Dark deep house at 122 BPM` or `Uplifting trance at 140 BPM`. The transform calls the same `POST /api/songs/generate` endpoint as the library's **New song** form and returns a saved song entity. Use **Load into Deck** on that result when ready.
+
+Generation works offline without API keys. It is procedural composition, not an LLM or audio model: genre keywords (house, techno, trance, ambient/soundscape), mood words and an explicit BPM hint shape the arrangement; the full phrase seeds melodic variation and becomes the title. Unsupported descriptions still seed a house arrangement. Text is never evaluated as code. Vocals are existing chopped samples, not sung/spoken versions of the phrase.
+
+The eight channels follow the existing MIDI mapping and share a 96-bar intro/groove/main/break/build/drop/outro arrangement. The same phrase produces the same musical parts but gets a new song ID on every generation. Generated songs persist on the engine server, appear in **To Songs**, and never automatically load or play either deck. A connected audio player is not required to generate or save.
+
+The app must include the new generation endpoint. Refresh the HTTPS seed to discover the transform; configure `ALGORAVE_API_URL` and `ALGORAVE_TOKEN` as usual for remote engines. The phrase is sent only to that configured engine, not to an external AI provider. Files default to `app/data/songs/` (ignored by Git); back up or mount this directory for persistence.
+
 ## Master mixer graph
 
 Run **To Mixer** on the engine to obtain `maltego.algorave.mixer`, then **To Channels** to obtain A and B as `maltego.algorave.mixer.channels`.
@@ -86,7 +96,7 @@ Run **To Mixer** on the engine to obtain `maltego.algorave.mixer`, then **To Cha
 
 Master volume and crossfader affect the shared output even when invoked on a channel entity. Channel volume and EQ affect only that channel. These transforms return the selected entity with acknowledged mixer values; other graph nodes remain snapshots until extracted/refreshed again. They preserve the output-device selection and controls not included in the change.
 
-Refresh the HTTPS seed for all 21 transforms. The new `desktop/algorave-mixer.mtz` adds both mixer entity types to the existing icon and overlay pack.
+Refresh the HTTPS seed for all 22 transforms. The new `desktop/algorave-mixer.mtz` adds both mixer entity types to the existing icon and overlay pack.
 
 ## Perform from the graph
 

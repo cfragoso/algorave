@@ -203,6 +203,9 @@ async function connect() {
   socket.onmessage = async ({data}) => {
     lastMessage = Date.now();
     const message = JSON.parse(data);
+    if (message.type === 'catalogueChanged') {
+      try { const selected = $('songs').value, songs = await api('/api/songs'); deck.catalog(songs); $('songs').replaceChildren(...songs.map(song => new Option(song.name, song.id))); if (songs.some(song => song.id === selected)) $('songs').value = selected; } catch (error) { showError(error); }
+    }
     if (message.type === 'state') render(message);
     if (message.type === 'state' && !active && message.telemetry) deck.telemetry(message.telemetry);
     if (message.type === 'telemetry' && !active && message.revision === state?.revision) deck.telemetry(message.frame);

@@ -43,8 +43,9 @@ async function connectMidi(){
 runtime.connectMidi=async id=>{$('midi-target').value=id;commitUi();await connectMidi();return 'MIDI target · deck '+id;};
 $('connect-midi').onclick=connectMidi;$('midi-target').onchange=()=>{commitUi();if(midiConnected)connectMidi();};
 window.addEventListener('message',event=>{if(event.origin!==location.origin||event.data?.type!=='deck-height'||!ids.includes(event.data.deck))return;const frame=$('frame-'+event.data.deck);if(event.source!==frame.contentWindow)return;if(Number.isFinite(event.data.height))frame.style.height=Math.max(180,Math.min(12000,event.data.height+4))+'px';});
-async function connect(){const songs=await api('/api/songs');$('library-song').replaceChildren(...songs.map(song=>new Option(song.name+' · '+song.bpm+' BPM',song.id)));socket?.close();socket=new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws?scope=session`);const connection=socket;let lastMessage=Date.now();const watchdog=setInterval(()=>{if(Date.now()-lastMessage>15000){runtime.audio?.silence();connection.close();}},2000);
- socket.onmessage=async({data})=>{if(socket!==connection)return;lastMessage=Date.now();const message=JSON.parse(data);if(message.type==='state'){render(message);if(message.telemetry){remoteMaster=message.telemetry;remoteAt=performance.now();}}if(message.type==='masterTelemetry'){remoteMaster=message.frame;remoteAt=performance.now();}if(message.type==='sync'){runtime.ownerId=message.ownerId;claimResolve?.();claimResolve=claimReject=null;}if(message.type==='error'){claimReject?.(new Error(message.error));claimResolve=claimReject=null;fail(new Error(message.error));}if(message.type==='restoreSetup'){
+async function refreshLibrary(){const songs=await api('/api/songs'),selected=$('library-song').value;$('library-song').replaceChildren(...songs.map(song=>new Option(song.name+' · '+song.bpm+' BPM',song.id)));if(songs.some(song=>song.id===selected))$('library-song').value=selected;}
+async function connect(){await refreshLibrary();socket?.close();socket=new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws?scope=session`);const connection=socket;let lastMessage=Date.now();const watchdog=setInterval(()=>{if(Date.now()-lastMessage>15000){runtime.audio?.silence();connection.close();}},2000);
+ socket.onmessage=async({data})=>{if(socket!==connection)return;lastMessage=Date.now();const message=JSON.parse(data);if(message.type==='catalogueChanged'){refreshLibrary().catch(fail);}if(message.type==='state'){render(message);if(message.telemetry){remoteMaster=message.telemetry;remoteAt=performance.now();}}if(message.type==='masterTelemetry'){remoteMaster=message.frame;remoteAt=performance.now();}if(message.type==='sync'){runtime.ownerId=message.ownerId;claimResolve?.();claimResolve=claimReject=null;}if(message.type==='error'){claimReject?.(new Error(message.error));claimResolve=claimReject=null;fail(new Error(message.error));}if(message.type==='restoreSetup'){
    try{const prepared=await Promise.all(ids.map(id=>deck(id).prepareSetup(message.setup.decks[id])));if(!active||socket!==connection)throw new Error('Audio device released during setup preparation');await runtime.audio.apply(message.setup.mixer);if(!active||socket!==connection){runtime.audio.silence();throw new Error('Audio device released during setup restore');}ids.forEach((id,i)=>deck(id).commitSetup(prepared[i]));$('midi-target').value=message.setup.ui.midiTarget;ids.forEach(id=>deck(id).disconnectMidi());if(midiConnected&&midiAccess){try{await deck(message.setup.ui.midiTarget).connectMidi(midiAccess);}catch(error){midiConnected=false;note('Setup loaded · reconnect MIDI: '+error.message);}}connection.send(JSON.stringify({type:'result',jobId:message.jobId,ok:true,bpms:Object.fromEntries(ids.map((id,i)=>[id,prepared[i].bpm]))}));}
    catch(error){connection.send(JSON.stringify({type:'result',jobId:message.jobId,ok:false,error:error.message}));}
  }if(message.type==='mixer'){try{await runtime.audio.apply(message.mixer);connection.send(JSON.stringify({type:'result',jobId:message.jobId,ok:true}));}catch(error){connection.send(JSON.stringify({type:'result',jobId:message.jobId,ok:false,error:error.message}));}}};
@@ -81,3 +82,17 @@ $('export-setup').onclick=async()=>{try{const saved=await api('/api/setups/'+sta
 $('import-setup').onclick=()=>$('setup-file').click();
 $('setup-file').onchange=async()=>{try{const file=$('setup-file').files[0];if(!file)return;if(file.size>600000)throw new Error('Setup file is too large');const saved=await api('/api/setups/import','POST',JSON.parse(await file.text()));await refreshSetups(saved.id);await job('/api/setups/'+saved.id+'/load','POST',{});note('Imported setup · '+saved.name);}catch(error){fail(error);}finally{$('setup-file').value='';}};
 refreshSetups().catch(fail);
+
+$('new-song-form').onsubmit = async event => {
+  event.preventDefault();
+  const button = $('generate-song'), status = $('song-generation-status');
+  button.disabled = true; button.textContent = 'Generating…'; status.textContent = 'Composing and saving…';
+  try {
+    const song = await api('/api/songs/generate', 'POST', {phrase: $('song-prompt').value});
+    await refreshLibrary(); $('library-song').value = song.id;
+    status.textContent = `Saved “${song.name}” · ${song.bpm} BPM. Use Load deck A or B when ready.`;
+    note('New song added to the library');
+  } catch (error) {
+    status.textContent = error.message + ' Your prompt is kept. If saving was interrupted, check the library before retrying.';
+  } finally { button.disabled = false; button.textContent = 'Generate song'; }
+};

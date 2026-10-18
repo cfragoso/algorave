@@ -101,3 +101,12 @@ test('deck tempo changes update the canonical score and preserve shared instrume
   assert.equal(result.bpm,124.5);assert.ok(result.pattern.queryArc(8,9).length);
   assert.throws(()=>setSongTempo(original,999),/Tempo/);
 });
+
+test('phrase-generated scores compile and all eight instruments play within the shared 96-bar arrangement',async()=>{
+  const {generateSong}=await import('../song-generator.js');
+  for(const phrase of ['Warm deep house 122 BPM','Dark techno 134 BPM','Uplifting trance 140 BPM','Ambient soundscape 90 BPM','A strange phrase with "quotes" and a new\nline']){
+    const song=generateSong(phrase),result=await compileSong(song,{strip:(_column,pattern)=>pattern}),roles=new Set();
+    for(let bar=0;bar<96;bar++){const events=result.pattern.queryArc(bar,bar+1);assert.ok(events.length);events.forEach(event=>roles.add(event.context.algoraveTrack));}
+    assert.equal(roles.size,8);assert.equal(result.bpm,song.bpm);
+  }
+});

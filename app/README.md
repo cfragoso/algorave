@@ -384,3 +384,13 @@ respective owners. This app license does not relicense unrelated existing repo f
 Use **Minimize** in each panel heading and **Expand** to restore it. Decks retain song title, elapsed time, BPM, bar/beat and compact rounded Play/Pause, Stop and Sync buttons while hiding the waveform, jog wheel and tempo hardware. Music Controller A/B replaces the Launch Control XL panel title. Its compact view shows eight numeric level percentages and side-by-side Mute/Solo buttons, mirroring the same MIDI/software mix. Full view retains the original knobs and faders.
 
 The score editor, main mixer and lights can also collapse. Panel preferences are remembered separately for each deck in the current browser; minimizing never releases the audio device or changes the song. The updated UI appears on the next browser reload. Reloading a browser that owns audio will interrupt playback, so do it between performances.
+
+## Generate a new song
+
+Open **＋ New song** in the shared library, describe the groove (for example `Midnight deep house at 122 BPM`) and click **Generate song**. The result is saved and selected in the library. Enable audio, then use **Load deck A/B** and Play when ready. Generation never replaces a loaded score or starts playback. The same API serves the Maltego Phrase transform.
+
+`POST /api/songs/generate` accepts `{"phrase":"Dark techno 134 BPM"}` and returns HTTP 201 with the saved song. `POST /api/songs` saves a complete validated song object, while `GET /api/songs` lists bundled and generated songs. These endpoints use the existing API authentication. Saving is synchronous and does not create an audio acknowledgement job. Existing song IDs return HTTP 409 instead of overwriting a song.
+
+This is an offline procedural generator supporting house, techno, trance, ambient, mood words and a BPM hint (40–250). It creates eight MIDI-mapped parts over 96 bars; phrase text determines the title and seeded musical variation. It does not use an LLM or generate vocal recordings. Existing vocal chops still require the normal sample downloads. Identical prompts reproduce the composition with new IDs.
+
+Songs persist in `app/data/songs/`, separate from named setups and bundled songs. Override with `ALGORAVE_SONG_DATA_DIR`. For Docker, add `-e ALGORAVE_SONG_DATA_DIR=/data/songs -v algorave-songs:/data/songs` to the run command so generated songs survive container removal. Back up this volume/directory separately from setup exports. Connected updated browsers refresh their library on a catalogue-change message without reloading the audio page.

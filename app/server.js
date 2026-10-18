@@ -1,4 +1,6 @@
 import http from 'node:http';
+import {createSongStore} from './song-store.js';
+import {generateSong} from './song-generator.js';
 import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -23,8 +25,9 @@ const equal = (a, b) => {
   return x.length === y.length && timingSafeEqual(x, y);
 };
 
-export async function createControlServer({token = '', timeoutMs = 10000, initialSong, initialRevision = 0, initialSession, setupDir = process.env.ALGORAVE_DATA_DIR || path.join(appDir,'data','setups')} = {}) {
+export async function createControlServer({token = '', timeoutMs = 10000, initialSong, initialRevision = 0, initialSession, setupDir = process.env.ALGORAVE_DATA_DIR || path.join(appDir,'data','setups'), songDir = process.env.ALGORAVE_SONG_DATA_DIR || path.join(appDir,'data','songs')} = {}) {
   const songs = new Map();
+  const generatedSongs = createSongStore(songDir);
   const refreshSongs = async () => {
     const updated=new Map();
   for (const name of await readdir(path.join(root, 'songs'))) {
@@ -35,6 +38,10 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
       if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error;
     }
   }
+    for(const song of await generatedSongs.list()) {
+      if(updated.has(song.id))throw new Error('Stored song ID collides with a bundled song');
+      updated.set(song.id, withSource(song));
+    }
     songs.clear();for(const [id,song] of updated)songs.set(id,song);
   };
   await refreshSongs();
@@ -136,6 +143,13 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
         const setupMatch=url.pathname.match(/^\/api\/setups\/([0-9a-f-]{36})(\/load)?$/);
         if(setupMatch){const setup=await setups.get(setupMatch[1]);if(req.method==='GET'&&!setupMatch[2])return json(res,200,setup);if(req.method==='POST'&&setupMatch[2]){const result=loadSetup(setup);return json(res,result.status,result.body);}}
         if(req.method==='GET' && url.pathname==='/api/session/state')return json(res,200,session());
+        if(req.method==='POST' && ['/api/songs','/api/songs/generate'].includes(url.pathname)){
+          const bodyInput=await body(req),input=url.pathname==='/api/songs/generate'?generateSong(bodyInput.phrase):bodyInput;await refreshSongs();
+          if(songs.has(input?.id))return json(res,409,{error:'Song ID already exists'});
+          let saved;
+          try {saved=await generatedSongs.save(input);} catch(error) {if(error.code==='EEXIST')return json(res,409,{error:'Song ID already exists'});throw error;}
+          songs.set(saved.id,saved);ws.clients.forEach(client=>send(client,{type:'catalogueChanged'}));return json(res,201,saved);
+        }
         if(req.method==='GET' && url.pathname==='/api/songs'){await refreshSongs();return json(res,200,[...songs.values()]);}
         if(req.method==='GET' && url.pathname.startsWith('/api/jobs/')){
           const job=jobs.get(url.pathname.slice(10));return json(res,job?200:404,job||{error:'Unknown job'});
