@@ -1,0 +1,555 @@
+{
+  "schema": "algorave-midi-mapping",
+  "version": 1,
+  "device": "Novation Launch Control XL",
+  "input_name": "Launch Control XL",
+  "verified_date": "2026-10-16",
+  "midi_channels_numbered_from": 1,
+  "hardware_template_slot": null,
+  "description": "All 48 physical controls identified by live MIDI capture. Keep the same selected hardware template. This JSON is an application mapping, not a Novation Components template file. Attach it to a future chat to restore this mapping.",
+  "software_startup_normalized": {
+    "volume": 0.65,
+    "cutoff": 0.75,
+    "resonance": 0,
+    "reverb": 0.05,
+    "mute": 0,
+    "solo": 0
+  },
+  "parameter_ranges": {
+    "cutoff_hz": [
+      100,
+      12000
+    ],
+    "resonance": [
+      0.5,
+      5
+    ],
+    "reverb": [
+      0,
+      0.6
+    ]
+  },
+  "columns": [
+    {
+      "column": 1,
+      "track": "kick",
+      "controls": {
+        "fader": {
+          "type": "cc",
+          "number": 77,
+          "channel": 2,
+          "parameter": "volume",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "top_knob": {
+          "type": "cc",
+          "number": 13,
+          "channel": 1,
+          "parameter": "cutoff",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "middle_knob": {
+          "type": "cc",
+          "number": 29,
+          "channel": 1,
+          "parameter": "resonance",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "bottom_knob": {
+          "type": "cc",
+          "number": 49,
+          "channel": 1,
+          "parameter": "reverb",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "upper_button": {
+          "type": "cc",
+          "number": 41,
+          "channel": 1,
+          "parameter": "mute",
+          "minimum": 0,
+          "maximum": 127,
+          "mode": "toggle",
+          "off": 0,
+          "on": 127,
+          "led_index": 24
+        },
+        "lower_button": {
+          "type": "cc",
+          "number": 73,
+          "channel": 1,
+          "parameter": "solo",
+          "minimum": 0,
+          "maximum": 127,
+          "mode": "toggle",
+          "off": 0,
+          "on": 127,
+          "led_index": 32
+        }
+      }
+    },
+    {
+      "column": 2,
+      "track": "clap",
+      "controls": {
+        "fader": {
+          "type": "cc",
+          "number": 78,
+          "channel": 2,
+          "parameter": "volume",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "top_knob": {
+          "type": "cc",
+          "number": 14,
+          "channel": 1,
+          "parameter": "cutoff",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "middle_knob": {
+          "type": "cc",
+          "number": 30,
+          "channel": 1,
+          "parameter": "resonance",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "bottom_knob": {
+          "type": "cc",
+          "number": 50,
+          "channel": 1,
+          "parameter": "reverb",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "upper_button": {
+          "type": "cc",
+          "number": 42,
+          "channel": 1,
+          "parameter": "mute",
+          "minimum": 0,
+          "maximum": 127,
+          "mode": "toggle",
+          "off": 0,
+          "on": 127,
+          "led_index": 25
+        },
+        "lower_button": {
+          "type": "cc",
+          "number": 74,
+          "channel": 1,
+          "parameter": "solo",
+          "minimum": 0,
+          "maximum": 127,
+          "mode": "toggle",
+          "off": 0,
+          "on": 127,
+          "led_index": 33
+        }
+      }
+    },
+    {
+      "column": 3,
+      "track": "closed_hats",
+      "controls": {
+        "fader": {
+          "type": "cc",
+          "number": 79,
+          "channel": 2,
+          "parameter": "volume",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "top_knob": {
+          "type": "cc",
+          "number": 15,
+          "channel": 1,
+          "parameter": "cutoff",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "middle_knob": {
+          "type": "cc",
+          "number": 31,
+          "channel": 1,
+          "parameter": "resonance",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "bottom_knob": {
+          "type": "cc",
+          "number": 51,
+          "channel": 1,
+          "parameter": "reverb",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "upper_button": {
+          "type": "cc",
+          "number": 43,
+          "channel": 1,
+          "parameter": "mute",
+          "minimum": 0,
+          "maximum": 127,
+          "mode": "toggle",
+          "off": 0,
+          "on": 127,
+          "led_index": 26
+        },
+        "lower_button": {
+          "type": "cc",
+          "number": 75,
+          "channel": 1,
+          "parameter": "solo",
+          "minimum": 0,
+          "maximum": 127,
+          "mode": "toggle",
+          "off": 0,
+          "on": 127,
+          "led_index": 34
+        }
+      }
+    },
+    {
+      "column": 4,
+      "track": "percussion",
+      "controls": {
+        "fader": {
+          "type": "cc",
+          "number": 80,
+          "channel": 2,
+          "parameter": "volume",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "top_knob": {
+          "type": "cc",
+          "number": 16,
+          "channel": 1,
+          "parameter": "cutoff",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "middle_knob": {
+          "type": "cc",
+          "number": 32,
+          "channel": 1,
+          "parameter": "resonance",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "bottom_knob": {
+          "type": "cc",
+          "number": 52,
+          "channel": 1,
+          "parameter": "reverb",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "upper_button": {
+          "type": "cc",
+          "number": 44,
+          "channel": 1,
+          "parameter": "mute",
+          "minimum": 0,
+          "maximum": 127,
+          "mode": "toggle",
+          "off": 0,
+          "on": 127,
+          "led_index": 27
+        },
+        "lower_button": {
+          "type": "cc",
+          "number": 76,
+          "channel": 1,
+          "parameter": "solo",
+          "minimum": 0,
+          "maximum": 127,
+          "mode": "toggle",
+          "off": 0,
+          "on": 127,
+          "led_index": 35
+        }
+      }
+    },
+    {
+      "column": 5,
+      "track": "bass",
+      "controls": {
+        "fader": {
+          "type": "cc",
+          "number": 81,
+          "channel": 2,
+          "parameter": "volume",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "top_knob": {
+          "type": "cc",
+          "number": 17,
+          "channel": 1,
+          "parameter": "cutoff",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "middle_knob": {
+          "type": "cc",
+          "number": 33,
+          "channel": 1,
+          "parameter": "resonance",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "bottom_knob": {
+          "type": "cc",
+          "number": 53,
+          "channel": 1,
+          "parameter": "reverb",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "upper_button": {
+          "type": "cc",
+          "number": 57,
+          "channel": 1,
+          "parameter": "mute",
+          "minimum": 0,
+          "maximum": 127,
+          "mode": "toggle",
+          "off": 0,
+          "on": 127,
+          "led_index": 28
+        },
+        "lower_button": {
+          "type": "cc",
+          "number": 89,
+          "channel": 1,
+          "parameter": "solo",
+          "minimum": 0,
+          "maximum": 127,
+          "mode": "toggle",
+          "off": 0,
+          "on": 127,
+          "led_index": 36
+        }
+      }
+    },
+    {
+      "column": 6,
+      "track": "lead",
+      "controls": {
+        "fader": {
+          "type": "cc",
+          "number": 82,
+          "channel": 2,
+          "parameter": "volume",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "top_knob": {
+          "type": "cc",
+          "number": 18,
+          "channel": 1,
+          "parameter": "cutoff",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "middle_knob": {
+          "type": "cc",
+          "number": 34,
+          "channel": 1,
+          "parameter": "resonance",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "bottom_knob": {
+          "type": "cc",
+          "number": 54,
+          "channel": 1,
+          "parameter": "reverb",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "upper_button": {
+          "type": "cc",
+          "number": 58,
+          "channel": 1,
+          "parameter": "mute",
+          "minimum": 0,
+          "maximum": 127,
+          "mode": "toggle",
+          "off": 0,
+          "on": 127,
+          "led_index": 29
+        },
+        "lower_button": {
+          "type": "cc",
+          "number": 90,
+          "channel": 1,
+          "parameter": "solo",
+          "minimum": 0,
+          "maximum": 127,
+          "mode": "toggle",
+          "off": 0,
+          "on": 127,
+          "led_index": 37
+        }
+      }
+    },
+    {
+      "column": 7,
+      "track": "chords",
+      "controls": {
+        "fader": {
+          "type": "cc",
+          "number": 83,
+          "channel": 2,
+          "parameter": "volume",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "top_knob": {
+          "type": "cc",
+          "number": 19,
+          "channel": 1,
+          "parameter": "cutoff",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "middle_knob": {
+          "type": "cc",
+          "number": 35,
+          "channel": 1,
+          "parameter": "resonance",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "bottom_knob": {
+          "type": "cc",
+          "number": 55,
+          "channel": 1,
+          "parameter": "reverb",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "upper_button": {
+          "type": "cc",
+          "number": 59,
+          "channel": 1,
+          "parameter": "mute",
+          "minimum": 0,
+          "maximum": 127,
+          "mode": "toggle",
+          "off": 0,
+          "on": 127,
+          "led_index": 30
+        },
+        "lower_button": {
+          "type": "cc",
+          "number": 91,
+          "channel": 1,
+          "parameter": "solo",
+          "minimum": 0,
+          "maximum": 127,
+          "mode": "toggle",
+          "off": 0,
+          "on": 127,
+          "led_index": 38
+        }
+      }
+    },
+    {
+      "column": 8,
+      "track": "vocals",
+      "controls": {
+        "fader": {
+          "type": "cc",
+          "number": 84,
+          "channel": 2,
+          "parameter": "volume",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "top_knob": {
+          "type": "cc",
+          "number": 20,
+          "channel": 1,
+          "parameter": "cutoff",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "middle_knob": {
+          "type": "cc",
+          "number": 36,
+          "channel": 1,
+          "parameter": "resonance",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "bottom_knob": {
+          "type": "cc",
+          "number": 56,
+          "channel": 1,
+          "parameter": "reverb",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "upper_button": {
+          "type": "cc",
+          "number": 60,
+          "channel": 1,
+          "parameter": "mute",
+          "minimum": 0,
+          "maximum": 127,
+          "mode": "toggle",
+          "off": 0,
+          "on": 127,
+          "led_index": 31
+        },
+        "lower_button": {
+          "type": "cc",
+          "number": 92,
+          "channel": 1,
+          "parameter": "solo",
+          "minimum": 0,
+          "maximum": 127,
+          "mode": "toggle",
+          "off": 0,
+          "on": 127,
+          "led_index": 39
+        }
+      }
+    }
+  ],
+  "led_feedback": {
+    "protocol": "novation_launch_control_xl_sysex",
+    "header": [
+      240,
+      0,
+      32,
+      41,
+      2,
+      17,
+      120
+    ],
+    "end": 247,
+    "requires_sysex_permission": true,
+    "output_name": "Launch Control XL",
+    "colours": {
+      "off": 12,
+      "enabled_green": 60,
+      "solo_amber": 63
+    },
+    "upper_row_meaning": "enabled by mute/solo, not sound activity",
+    "lower_row_meaning": "solo enabled",
+    "template_selection": "Use slot announced by template-change SysEx; until known update only button LED colours in all 16 slots.",
+    "refresh_ms": 1000
+  },
+  "application_button_behavior": "For this verified hardware toggle template, each incoming CC value 0 or 127 toggles the application state once; release messages were not observed. Ignore other values. Do not apply this behavior to momentary templates."
+}

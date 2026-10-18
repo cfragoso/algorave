@@ -1,0 +1,10 @@
+{
+  "_base": "https://raw.githubusercontent.com/tidalcycles/Dirt-Samples/master/",
+  "nightvox": [
+    "numbers/1.wav",
+    "numbers/2.wav",
+    "numbers/3.wav",
+    "numbers/4.wav",
+    "yeah/000_Sound0.wav"
+  ]
+}

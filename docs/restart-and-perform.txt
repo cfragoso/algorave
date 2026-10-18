@@ -1,0 +1,112 @@
+RESTART THE EXISTING NIGHT BUS SONG
+
+1. Connect the Launch Control XL and select the same hardware template used
+   during mapping. We have not recorded its slot number. Do not load the older
+   proposed custom template: the current song uses your observed mapping.
+2. Select the audio output you want in macOS Sound settings. The last checked
+   music output was Bose USB Audio; system alert sounds used MacBook speakers.
+   Start at a low listening volume.
+3. Open Strudel in Chrome. Use one playing Strudel tab. Paste the COMPLETE
+   songs/night-bus/song.js file, rather than an older shared URL.
+4. Keep USE_MIDI=true. For a restart in an existing tab, set RESET_MIX=true.
+   Click Play and permit MIDI access if prompted. This restores software
+   volumes to 65%, opens filters and clears software mute/solo.
+5. Once you hear it, change RESET_MIX back to false and click Update.
+6. Move each fader/knob to take over its value. Physical positions may differ
+   from software defaults. Move faders gently: this example has no pickup.
+   Software reset refreshes button LEDs. Each verified toggle-button press
+   flips software state, so the next press works after a reset.
+
+IF SILENT
+
+- Try RESET_MIX=true, Update; then restore false after recovery.
+- Try USE_MIDI=false, Update to isolate controller state from audio problems.
+- If still silent, save the current code and reload the page, then click Play.
+  A previous Chrome AudioContext failure required a fresh Strudel tab.
+- A useful isolated test is:
+    setcpm(134 / 4)
+    $: s("bd*4").gain(0.5)
+- If that is silent too, inspect your selected macOS output, its volume, the
+  browser tab's mute setting and Strudel's error message.
+- In the full arrangement, clap/bass enter after about 14 seconds; lead,
+  chords and vocals enter after about 43 seconds. Soloing a part before its
+  entry gives silence. Muting the kick alone does not mute the other drums.
+
+RESTART A LIVE-CODING SET
+
+1. Do the USB/output checks above.
+2. Paste controllers/launch-control-xl/setup.js into Strudel and evaluate it once. It loads
+   vocal samples, connects the verified controls, resets the mix, and creates
+   the liveStrip(column, pattern) helper. It intentionally plays silence.
+3. Replace the editor with songs/live-set/score.js and click Play/Update.
+   The kick is the only active musical line. The large setup is no longer
+   in the projected editor, but stays in memory in this tab.
+4. Build up the music by uncommenting or typing one part at a time.
+5. After a page reload, run setup again before using the score. If you see
+   'liveStrip is not defined', the setup has not run in this tab.
+6. To reset the live mix, save your score, evaluate the setup again, then
+   restore the score. To rehearse without hardware, change USE_MIDI=false
+   in setup before evaluating; the score then uses its fixed gain levels.
+
+A SUGGESTED 8- TO 12-MINUTE PERFORMANCE
+
+Treat these as flexible stages, not an automatic arrangement.
+
+0:00–1:00  Establish the kick. Let people settle into its pulse. Project a
+           large font and only the score. Keep comments short and useful.
+1:00–2:00  Add closed hats, then clap. Let each addition play for 8–16 bars
+           (about 14–29 seconds at 134 BPM) before making another big change.
+2:00–3:30  Type the bass. First repeat E; then change one note. The audience
+           hears the connection between a small code change and the groove.
+3:30–5:00  Add open hats and the four-note lead. Change its rhythm before
+           adding complexity. Use the controller to sweep the lead filter.
+5:00–6:00  Introduce one vocal hit as a recurring hook. Sparse repetition is
+           easier to recognize than a stream of unrelated samples.
+6:00–7:00  Remove kick and bass. Add/leave chords and vocal. Build tension
+           with a filter sweep or a short hat subdivision change.
+7:00–9:00  Restore kick and bass together. Let the drop breathe. Return to
+           the same lead/vocal hook so the audience recognizes it.
+9:00–end   Make one last variation, then remove layers gradually. Finish
+           deliberately rather than stopping because code became awkward.
+
+During editing, let the current groove continue. Use Update, not Stop, for
+musical changes. Avoid debugging MIDI/network setup on the projected score.
+Keep a copy of your last good score. Use the faders for transitions while
+you think about the next line of code. Rehearse the drop and recovery first.
+
+The eight columns stay attached to musical roles. You can change a line's
+notes or sound without changing its liveStrip number. Use double quotes for
+Strudel mini-notation. Your normal filter/reverb knobs override those same
+parameters if you put them inside a musical line.
+
+MAPPING BACKUP
+
+controllers/launch-control-xl/mapping.json contains all 48 verified CC/channel mappings,
+track names, ranges and starting values. Attach it to a future chat and ask
+to restore this setup; you do not need to repeat the hardware mapping test.
+
+It is an application mapping, not a Novation Components hardware-template
+file, and Strudel does not automatically import it. The setup JS already
+contains the same assignments so it can be pasted directly into Strudel.
+To back up the controller's actual template, use Novation Components: get
+the selected template from the device and save it to your computer. Record
+the slot/template number and keep that native export beside this JSON.
+https://support.novationmusic.com/hc/en-gb/articles/4411807214226-Launch-Control-XL-MK-1-and-2-Components-guide
+
+VALIDATION
+
+JSON was checked against all 48 verified assignments. Setup and score were
+syntax checked. The setup reuses the MIDI listener/mixer already verified
+with your song. The separate setup-then-score workflow and musical score
+still need a rehearsal in Strudel before a public performance.
+
+CONTROLLER BUTTON LIGHTS
+
+Upper row: green means enabled by mute/solo; off means muted or excluded
+by another solo. Lower row: amber means solo on; off means solo off.
+Lights show mixer permission, not note activity or fader level.
+LED feedback needs browser MIDI/SysEx permission. Physical-index SysEx
+updates colours without changing control assignments. The selected template
+slot is learned on template change; until then LED colours are written to
+all 16 slots. Re-run the live setup after reload as usual.
+The user confirmed the kick mute button now matches both sound and light.
