@@ -3,7 +3,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 from zipfile import ZipFile, ZIP_DEFLATED
 
-from entities import Engine, Song, Deck, Instrument
+from entities import Engine, Song, Deck, Instrument, Mixer, MixerChannel
 from maltego.server import _server
 
 
@@ -43,7 +43,7 @@ def build(destination):
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     with ZipFile(destination, 'w', ZIP_DEFLATED) as archive:
-        for cls in (Engine, Song, Deck, Instrument):
+        for cls in (Engine, Song, Deck, Instrument, Mixer, MixerChannel):
             archive.writestr(f'Entities/{cls.TYPE_NAME}.entity', entity_xml(cls))
         # SDK-generated icon sizes use the same layout as Desktop's entity exports.
         for name, icon in _server.paired_config.icons.items():
@@ -55,4 +55,4 @@ def build(destination):
 
 
 if __name__ == '__main__':
-    print(build(Path(__file__).with_name('desktop') / 'algorave-entities.mtz'))
+    print(build(Path(__file__).with_name('desktop') / 'algorave-mixer.mtz'))

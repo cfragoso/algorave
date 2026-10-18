@@ -1,3 +1,4 @@
+import {initPanelViews} from './panel-views.js';
 import {initStrudel, getAudioContext, webaudioOutput, getSuperdoughAudioController, initAudio, resetGlobalEffects} from '@strudel/web/web.mjs';
 import {createMixer} from './mixer.js';
 import {sessionControls} from './session-ui.js';
@@ -11,6 +12,8 @@ import {alignScheduler,nearestAlignedCycle} from './beat-sync.js';
 
 const deckId = new URLSearchParams(location.search).get('deck') === 'B' ? 'B' : 'A';
 const embedded = window.parent !== window;
+document.getElementById('controller-title').textContent = 'Music Controller ' + deckId;
+initPanelViews();
 if(embedded){document.body.classList.add('embedded');document.querySelector('.panel-heading h1').innerHTML='DECK <span>'+deckId+'</span>';document.title='Deck '+deckId+' · Strudel';}
 const $ = id => document.getElementById(id);
 const status = message => { $('status').textContent = message; };

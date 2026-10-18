@@ -20,7 +20,7 @@ Add this seed URL to Maltego using its transform-server/seed installation flow:
 
 **https://127.0.0.1:8081/seed**
 
-Discovery includes all four custom entity definitions and the Algorave transform set. No manual entity creation or separate entity package is necessary with a client supporting the SDK v3 protocol. The service uses HTTPS by default. On first startup it generates a local self-signed certificate for `localhost` and `127.0.0.1` in ignored `.local/`, with a private key readable only by its owner. Existing certificates are retained across restarts. This does not install any certificate into your operating system or Maltego trust store.
+Discovery includes all six custom entity definitions and the Algorave transform set. No manual entity creation or separate entity package is necessary with a client supporting the SDK v3 protocol. The service uses HTTPS by default. On first startup it generates a local self-signed certificate for `localhost` and `127.0.0.1` in ignored `.local/`, with a private key readable only by its owner. Existing certificates are retained across restarts. This does not install any certificate into your operating system or Maltego trust store.
 
 If you previously installed the HTTP seed, update or reinstall that integration using the HTTPS seed above so stored transform-server URLs are refreshed. Your Engine URL remains `http://127.0.0.1:3000`: that is the separate Algorave API endpoint.
 
@@ -61,7 +61,7 @@ Stable hidden routing identities remain separate from the visible values so simi
 
 ## Desktop icon and overlay migration
 
-Older saved graphs can retain entity definitions pointing at the Unknown icon even after the SDK icons have installed. The supplied [desktop/algorave-entities.mtz](desktop/algorave-entities.mtz) contains the four corrected entity definitions, three icon families and overlay mappings in Desktop import format.
+Older saved graphs can retain entity definitions pointing at the Unknown icon even after the SDK icons have installed. The supplied [desktop/algorave-mixer.mtz](desktop/algorave-mixer.mtz) contains the six entity definitions, three icon families and overlay mappings in Desktop import format.
 
 1. Use Maltego's **Import Config** wizard to import that file. Include both **Entities** and **Icons**, and replace the existing Algorave definitions when prompted.
 2. Refresh the integration from `https://127.0.0.1:8081/seed` to discover **Refresh Setup**.
@@ -70,6 +70,23 @@ Older saved graphs can retain entity definitions pointing at the Unknown icon ev
 Returned engine, deck and song entities also carry explicit public image URLs as a fallback independent of the installed type icon. That fallback requires access to the original image hosts. The MTZ's type icons are bundled locally and remain usable offline. The pack does not contain credentials, graphs or setup data.
 
 Rebuild the pack after entity-definition changes with `.venv/bin/python build_entity_pack.py`. Archive contents and mappings are tested; the final import/rendering step must be checked in the user's Desktop client.
+
+## Master mixer graph
+
+Run **To Mixer** on the engine to obtain `maltego.algorave.mixer`, then **To Channels** to obtain A and B as `maltego.algorave.mixer.channels`.
+
+| Input | Transform | Setting |
+| --- | --- | --- |
+| Mixer or mixer channel | Crossfader | `left` (A), `middle` (equal-power blend), or `right` (B) |
+| Mixer or mixer channel | Change Master Volume | Whole number 0–100 |
+| Mixer channel | Change Channel Volume | Whole number 0–100 |
+| Mixer channel | Change High EQ | −24 through +12 dB, 0 neutral |
+| Mixer channel | Change Mid EQ | −24 through +12 dB, 0 neutral |
+| Mixer channel | Change Low EQ | −24 through +12 dB, 0 neutral |
+
+Master volume and crossfader affect the shared output even when invoked on a channel entity. Channel volume and EQ affect only that channel. These transforms return the selected entity with acknowledged mixer values; other graph nodes remain snapshots until extracted/refreshed again. They preserve the output-device selection and controls not included in the change.
+
+Refresh the HTTPS seed for all 21 transforms. The new `desktop/algorave-mixer.mtz` adds both mixer entity types to the existing icon and overlay pack.
 
 ## Perform from the graph
 

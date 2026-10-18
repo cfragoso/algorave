@@ -18,3 +18,34 @@ body.embedded{min-height:0;height:auto}.embedded .cm-scroller{max-height:650px!i
 .embedded .deck-readouts strong{font-size:clamp(13px,4.5vw,22px);white-space:nowrap}.embedded .deck-readouts>div{min-width:0}.embedded .controller{padding:12px}.embedded .controller-scroll{padding:3px 0 0}.embedded .controller-body{min-width:300px}.embedded .row-labels{width:32px;font-size:6px}.embedded #controller-strips{gap:3px}.embedded .knob-wrap{width:26px;height:26px;padding:3px}.embedded .knob-input{width:30px;height:30px;inset:-3px}.embedded .controller .panel-heading button{font-size:9px;padding:7px}.embedded .strip-label{font-size:6px}.embedded .strip-button{font-size:6px}
 .sync-button{border-color:#83a964!important;color:#c3dfa1!important}
 .sync-info{font:7px 'IBM Plex Mono',monospace;color:#a3bd88;max-width:85px;text-align:center}
+
+/* Local compact panel views retain the same transport, mixer and telemetry nodes. */
+.panel-toggle{margin-left:auto;flex-shrink:0;font-size:9px;padding:5px 9px;border-radius:20px;align-self:center}
+.compact-level{display:none}
+.panel.is-minimized:not(.deck):not(.controller)>:not(.panel-heading):not(.editor-heading){display:none}
+.full-editor.is-minimized .toolbar,.full-editor.is-minimized .editor-heading p{display:none}
+.panel.is-minimized .panel-heading,.full-editor.is-minimized .editor-heading{margin-bottom:0}
+.deck.is-minimized{padding-bottom:12px}
+.deck.is-minimized .panel-heading>.tiny-label,.deck.is-minimized .wave-heading,.deck.is-minimized #waveform,.deck.is-minimized .track-progress,.deck.is-minimized .meter-row,.deck.is-minimized .browse-row,.deck.is-minimized .deck-footer,.deck.is-minimized .jog,.deck.is-minimized .tempo-control,.deck.is-minimized #cue,.deck.is-minimized .sync-info{display:none}
+.deck.is-minimized .deck-screen{padding:10px 12px}
+.deck.is-minimized .track-heading{min-height:30px}
+.deck.is-minimized .track-heading .tiny-label,.deck.is-minimized .track-number,.deck.is-minimized .key-chip{display:none}
+.deck.is-minimized .track-heading h2{font-size:16px;margin:0;white-space:normal}
+.deck.is-minimized .deck-readouts{margin:10px 0 0;padding:0;border:0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.deck.is-minimized .deck-readouts strong{font-size:17px}
+.deck.is-minimized .deck-hardware{min-height:0!important;padding:10px 0 0;display:flex;justify-content:flex-start}
+.deck.is-minimized .transport-stack{display:flex;flex-direction:row;align-items:center;gap:8px;width:auto}
+.deck.is-minimized .transport,.deck.is-minimized .stop-button{width:auto;min-width:48px;height:32px;border-radius:24px;padding:6px 12px;font-size:10px;box-shadow:none;margin:0}
+.controller.is-minimized .controller-footer,.controller.is-minimized .row-labels,.controller.is-minimized .knob-wrap,.controller.is-minimized .mixer-fader{display:none}
+.controller.is-minimized .controller-body{min-width:360px}
+.controller.is-minimized #controller-strips{gap:8px}
+.controller.is-minimized .controller-scroll{padding:4px 12px 14px}
+.controller.is-minimized .mixer-strip{grid-template-columns:1fr 1fr;grid-template-rows:32px 32px 24px;gap:5px;align-items:center}
+.controller.is-minimized .strip-label,.controller.is-minimized .compact-level{grid-column:1 / -1}
+.controller.is-minimized .compact-level{display:block;width:100%;min-width:0;height:30px;padding:3px;font:12px 'IBM Plex Mono',monospace;text-align:center}
+.controller.is-minimized .strip-button{height:24px;border-radius:12px;font-size:7px;min-width:0}
+.controller.is-minimized .panel-heading{flex-wrap:wrap;gap:8px}
+.controller.is-minimized .panel-heading h2{text-transform:none;letter-spacing:.02em}
+@media(max-width:400px){.deck.is-minimized .deck-readouts strong{font-size:13px}.deck.is-minimized .deck-readouts .tiny-label{font-size:7px}}
+
+.main-mixer .panel-heading{flex-wrap:wrap;gap:8px}

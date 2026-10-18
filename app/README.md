@@ -378,3 +378,9 @@ Dependencies are pinned in `package-lock.json`. Samples load from the public
 tidal-drum-machines and Dirt-Samples repositories; no sample audio is bundled.
 Internet access is required for uncached samples. Sample rights remain with their
 respective owners. This app license does not relicense unrelated existing repo files.
+
+## Compact panel views
+
+Use **Minimize** in each panel heading and **Expand** to restore it. Decks retain song title, elapsed time, BPM, bar/beat and compact rounded Play/Pause, Stop and Sync buttons while hiding the waveform, jog wheel and tempo hardware. Music Controller A/B replaces the Launch Control XL panel title. Its compact view shows eight numeric level percentages and side-by-side Mute/Solo buttons, mirroring the same MIDI/software mix. Full view retains the original knobs and faders.
+
+The score editor, main mixer and lights can also collapse. Panel preferences are remembered separately for each deck in the current browser; minimizing never releases the audio device or changes the song. The updated UI appears on the next browser reload. Reloading a browser that owns audio will interrupt playback, so do it between performances.

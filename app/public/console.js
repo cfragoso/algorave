@@ -40,13 +40,25 @@ export function createPerformanceConsole({onMix, onTempo, report}) {
         }
       }
     }
-    controls.push({nodes,heading}); $('controller-strips').append(strip);
+    const level = document.createElement('input');
+    level.type = 'number'; level.min = 0; level.max = 100; level.step = 1;
+    level.className = 'compact-level'; level.disabled = true;
+    level.setAttribute('aria-label', name + ' level percent');
+    level.onchange = () => {
+      if (level.value !== '' && level.checkValidity()) onMix(i + 1, 'volume', Number(level.value) / 100);
+      else level.value = Math.round((mixer?.values[i].volume || 0) * 100);
+    };
+    strip.insertBefore(level, nodes.mute);
+    controls.push({nodes,heading,level}); $('controller-strips').append(strip);
   });
   function updateMixer(next) {
     if (!next) return;
     mixer = next;
     const solo = next.values.some(v => v.solo > 0.5);
     next.values.forEach((values,i) => {
+      controls[i].level.disabled = !local;
+      if (document.activeElement !== controls[i].level) controls[i].level.value = Math.round(values.volume * 100);
+      controls[i].level.title = names[i] + ' level: ' + Math.round(values.volume * 100) + '%';
       for (const p of params) {
         const node = controls[i].nodes[p], value = values[p];
         if (['mute','solo'].includes(p)) {
@@ -54,7 +66,7 @@ export function createPerformanceConsole({onMix, onTempo, report}) {
           node.setAttribute('aria-pressed',String(value > 0.5));
           if (p === 'mute') {
             node.classList.toggle('enabled', !values.mute && (!solo || values.solo));
-            node.textContent = values.mute ? 'MUTED' : 'ON';
+            node.textContent = node.closest('.controller').classList.contains('is-minimized') ? 'MUTE' : values.mute ? 'MUTED' : 'ON';
           } else node.classList.toggle('soloed',value > 0.5);
         } else {
           node.input.disabled = !local; node.input.value = value;
@@ -68,6 +80,7 @@ export function createPerformanceConsole({onMix, onTempo, report}) {
     $('midi-state').textContent = next.connected ? 'MIDI LIVE' + (next.ledConnected ? ' / LED FEEDBACK' : ' / NO LED OUTPUT') : 'SOFTWARE MIX / MIDI NOT CONNECTED';
     $('mixer-note').textContent = local ? 'Knobs and faders mirror MIDI. You can also adjust them here.' : 'Audio-device mix. Physical controls update when moved; defaults are software values.';
   }
+  document.querySelector('.controller').addEventListener('panelviewchange', () => { if (mixer) updateMixer(mixer); });
   $('wave-mode').onclick = () => { mode = mode === 'wave' ? 'scope' : 'wave'; $('wave-mode').textContent = mode.toUpperCase(); };
   $('wave-in').onclick = () => { seconds = Math.max(4,seconds/2); };
   $('wave-out').onclick = () => { seconds = Math.min(64,seconds*2); };

@@ -80,3 +80,30 @@ class Instrument(MaltegoEntity):
     gain: float = MEF(matching_rule='loose', name='algorave.gain', display_name='Channel gain (0–1)', readonly=True)
     gain_display: str = MEF(matching_rule='loose', name='algorave.gain_display', display_name='Channel gain (%)', readonly=True)
     source_hash: str = MEF(matching_rule='loose', name='algorave.source_hash', readonly=True, hidden=True)
+
+
+@register_entity
+class Mixer(MaltegoEntity):
+    TYPE_NAME = 'maltego.algorave.mixer'
+    Config = config('Mixer', 'Mixers', icon='engine')
+    identity: str = MEF(name='algorave.id', matching_rule='strict', readonly=True)
+    label: str = MEF(name='algorave.label', matching_rule='loose', readonly=True)
+    engine_url: str = MEF(name='algorave.engine_url', matching_rule='loose', readonly=True)
+    master: float = MEF(name='algorave.master', display_name='Master volume (0–1)', matching_rule='loose', readonly=True)
+    crossfader: float = MEF(name='algorave.crossfader', matching_rule='loose', readonly=True)
+
+
+@register_entity
+class MixerChannel(MaltegoEntity):
+    TYPE_NAME = 'maltego.algorave.mixer.channels'
+    Config = config('Mixer Channel', 'Mixer Channels', icon='deck')
+    identity: str = MEF(name='algorave.id', matching_rule='strict', readonly=True)
+    label: str = MEF(name='algorave.label', matching_rule='loose', readonly=True)
+    engine_url: str = MEF(name='algorave.engine_url', matching_rule='loose', readonly=True)
+    deck: str = MEF(name='algorave.deck', matching_rule='loose', readonly=True)
+    volume: float = MEF(name='algorave.volume', display_name='Channel volume (0–1)', matching_rule='loose', readonly=True)
+    master: float = MEF(name='algorave.master', display_name='Master volume (0–1)', matching_rule='loose', readonly=True)
+    crossfader: float = MEF(name='algorave.crossfader', matching_rule='loose', readonly=True)
+    high: float = MEF(name='algorave.high', display_name='High EQ (dB)', matching_rule='loose', readonly=True)
+    mid: float = MEF(name='algorave.mid', display_name='Mid EQ (dB)', matching_rule='loose', readonly=True)
+    low: float = MEF(name='algorave.low', display_name='Low EQ (dB)', matching_rule='loose', readonly=True)

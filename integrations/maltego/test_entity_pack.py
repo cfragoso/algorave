@@ -16,6 +16,8 @@ class EntityPackTests(unittest.TestCase):
                     self.assertIn(f'Icons/Algorave/algorave-{icon}48.png', pack.namelist())
                     self.assertIn(f'Icons/Algorave/algorave-{icon}.png', pack.namelist())
                     self.assertEqual(entity.find('Properties').get('value'), 'algorave.label')
+                self.assertIn('Entities/maltego.algorave.mixer.entity', pack.namelist())
+                self.assertIn('Entities/maltego.algorave.mixer.channels.entity', pack.namelist())
                 deck = ET.fromstring(pack.read('Entities/maltego.algorave.decks.entity'))
                 self.assertEqual({o.get('position') for o in deck.findall('Overlays/Overlay')}, {'N','NW','W'})
                 instrument = ET.fromstring(pack.read('Entities/maltego.algorave.instrument.entity'))
