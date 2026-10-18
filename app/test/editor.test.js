@@ -44,9 +44,14 @@ test('API track edits rewrite the shared score while preserving setup and other 
 });
 
 test('existing presets compile and failed code/tempo is rejected before playback changes', async () => {
-  for (const id of ['live-set', 'night-bus']) {
+  for (const id of ['live-set', 'night-bus', 'south-african-awakening']) {
     const result = await compileSong(await preset(id), {strip: (_column, pattern) => pattern});
     assert.ok(result.pattern.queryArc(0, 1).length);
+    if (id === 'south-african-awakening') {
+      assert.equal(result.bpm, 122);
+      // Query the complete arrangement, including parts absent in the intro.
+      for (let bar = 0; bar < 128; bar++) assert.ok(result.pattern.queryArc(bar, bar + 1).length);
+    }
   }
   const song = await preset('live-set');
   assert.throws(() => replaceSource(song, 'kick$: s('));

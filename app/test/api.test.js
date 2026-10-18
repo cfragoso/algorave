@@ -77,7 +77,8 @@ test('authentication, browser session cookies and origin checks', async t => {
   assert.equal((await request('/api/state', 'GET', null, {Cookie: cookie})).status, 200);
   assert.equal((await request('/api/state', 'GET', null, {Authorization: 'Bearer ' + token, Origin: 'http://evil.example'})).status, 403);
   const player = await connect({Cookie: cookie}); player.send({type: 'claim'}); await player.wait('sync');
-  assert.equal((await request('/api/songs', 'GET', null, {Authorization: 'Bearer ' + token})).body.length, 2);
+  const catalog = (await request('/api/songs', 'GET', null, {Authorization: 'Bearer ' + token})).body;
+  for (const id of ['live-set', 'night-bus', 'south-african-awakening']) assert.ok(catalog.some(song => song.id === id));
   assert.equal((await request('/missing.js')).status, 404);
 });
 

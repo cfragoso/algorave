@@ -1,0 +1,64 @@
+{
+  "id": "south-african-awakening",
+  "name": "South African awakening",
+  "bpm": 122,
+  "tracks": [
+    {
+      "id": "kick",
+      "column": 1,
+      "code": "journey(dawnKick, kick, kick, silence, kickLift, kick, kick, silence)",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "clap",
+      "column": 2,
+      "code": "journey(silence, clap, clapGhost, silence, clap, clapGhost, clap, silence)",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "closed_hats",
+      "column": 3,
+      "code": "journey(hats.gain(0.025), hats, hats, silence, hatsLift, hatsLift, hats, hats.gain(0.02))",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "percussion",
+      "column": 4,
+      "code": "journey(rim.gain(0.025), percussion, percussionPeak,\n  rim.gain(0.03), rim, percussionPeak, percussion, silence)",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "bass",
+      "column": 5,
+      "code": "journey(silence, bass, bassPeak, silence, bass.gain(0.10), bassPeak, bass, silence)",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "lead",
+      "column": 6,
+      "code": "journey(silence, silence, conversation, answer.gain(0.025),\n  motif, conversation, motif, silence)",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "chords",
+      "column": 7,
+      "code": "journey(pad, keys, keys, pad, pad, keys, keys, pad.gain(0.018))",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "vocals",
+      "column": 8,
+      "code": "journey(silence, silence, breath, breath,\n  silence, stack(breath, vocalReply), breath, silence)",
+      "sound": null,
+      "enabled": true
+    }
+  ],
+  "code": "// SOUTH AFRICAN AWAKENING\n// Original deep house sketch · 122 BPM · F# minor · 128 bars / about 4:12.\n// App score: MIDI and sample loading are handled by the shared player.\n// Edit one definition, then Ctrl/Cmd+Enter. Keep the named parts for MIDI/API.\nsetcpm(122 / 4);\n\n// Dawn 8 | settle 16 | awakening 24 | breathe 16 | lift 8\n// Sunlight 32 | afterglow 16 | horizon 8. The complete arrangement loops.\nfunction journey(dawn, settle, awakening, breathe, lift, sunlight, afterglow, horizon) {\n  return arrange(\n    [8, dawn], [16, settle], [24, awakening], [16, breathe],\n    [8, lift], [32, sunlight], [16, afterglow], [8, horizon],\n  );\n}\n\n// Shared eight-bar harmony: F#m9 → Dmaj9 → Amaj9 → E6/9.\nconst harmony = note(\"<[f#3,a3,c#4,e4,g#4] [d3,f#3,a3,c#4,e4] [a2,c#3,e3,g#3,b3] [e3,g#3,b3,c#4,f#4]>\").slow(2);\nconst roots = \"<f#2 f#2 d2 d2 a1 a1 e2 e2>\";\n\n// 1 KICK — unhurried, rounded four-on-the-floor.\nconst kick = s(\"bd*4\").bank('tr909').gain(0.48);\nconst dawnKick = arrange([4, silence], [4, kick.gain(0.32)]);\nconst kickLift = arrange([6, kick], [2, silence]);\nkick$: journey(dawnKick, kick, kick, silence, kickLift, kick, kick, silence);\n\n// 2 CLAP — light backbeat; sparse ghost snare gives the peak some motion.\nconst clap = s(\"~ cp ~ cp\").bank('tr909').gain(0.16);\nconst clapGhost = stack(clap,\n  s(\"<~ ~ ~ [~ ~ ~ sd]>\").bank('tr909').gain(0.045),\n);\nclap$: journey(silence, clap, clapGhost, silence, clap, clapGhost, clap, silence);\n\n// 3 CLOSED HATS — shuffled eighths, then quiet sixteenth-note accents.\nconst hats = s(\"hh*8\").bank('tr909').gain(\"0.065 0.035\").swingBy(0.18, 4);\nconst hatsLift = s(\"hh*16\").bank('tr909')\n  .gain(\"0.065 0.022 0.042 0.025\").swingBy(0.14, 8);\nhats$: journey(hats.gain(0.025), hats, hats, silence, hatsLift, hatsLift, hats, hats.gain(0.02));\n\n// 4 PERCUSSION — a five-hit rim cycle against open hats and low tuned pulses.\nconst rim = s(\"rim(5,8)\").bank('tr909').gain(\"0.07 0.04 0.055\").swingBy(0.12, 4);\nconst open = s(\"~ oh ~ oh ~ oh ~ oh\").bank('tr909').gain(0.055).cut(4);\nconst pulse = note(\"~ c#3 ~ ~ e3 ~ c#3 ~\").s('sine')\n  .attack(0.002).decay(0.065).sustain(0).release(0.03).gain(0.045);\nconst percussion = stack(rim, open);\nconst percussionPeak = stack(percussion, pulse);\npercussion$: journey(rim.gain(0.025), percussion, percussionPeak,\n  rim.gain(0.03), rim, percussionPeak, percussion, silence);\n\n// 5 BASS — syncopated roots follow the chords; triangle keeps some audibility\n// on small speakers. Change the rhythm string to reshape the pocket.\nconst bass = note(roots).struct(\"~ x ~ x ~ ~ x x\").s('triangle')\n  .attack(0.008).decay(0.18).sustain(0.15).release(0.08).gain(0.17);\nconst bassPeak = stack(\n  bass,\n  note(\"<c#3 c#3 a2 a2 e2 e2 b2 b2>\").struct(\"~ ~ ~ ~ ~ ~ ~ x\")\n    .s('sine').decay(0.11).sustain(0).release(0.05).gain(0.045),\n);\nbass$: journey(silence, bass, bassPeak, silence, bass.gain(0.10), bassPeak, bass, silence);\n\n// 6 LEAD — a soft mallet-like phrase; spaces are part of the melody.\nconst motif = note(\"c#5 ~ b4 a4 ~ g#4 ~ e4\").slow(2).s('triangle')\n  .attack(0.003).decay(0.20).sustain(0).release(0.15)\n  .delay(0.16).delaytime(60 / 122 * 0.75).delayfeedback(0.25).gain(0.06);\nconst answer = note(\"~ e5 ~ c#5 b4 ~ g#4 ~\").slow(2).s('sine')\n  .attack(0.01).decay(0.32).sustain(0).release(0.25).gain(0.045);\nconst conversation = arrange([4, motif], [4, answer]);\nlead$: journey(silence, silence, conversation, answer.gain(0.025),\n  motif, conversation, motif, silence);\n\n// 7 CHORDS — warm ninths: sustained dawn/breakdown, syncopated main groove.\nconst pad = harmony.s('triangle').attack(0.55).decay(0.6)\n  .sustain(0.35).release(1.5).gain(0.025);\nconst keys = harmony.struct(\"~ x ~ ~ x ~ x ~\").s('triangle')\n  .attack(0.008).decay(0.38).sustain(0).release(0.28).gain(0.035);\nchords$: journey(pad, keys, keys, pad, pad, keys, keys, pad.gain(0.018));\n\n// 8 VOCAL TEXTURE — sparse, pitched/chopped 'yeah', not a sung verse.\n// Uses the existing nightvox map; substitute your own recorded vocal later.\nconst breath = s(\"~ nightvox:4 ~ ~\").slow(8).speed(0.78)\n  .begin(0.02).end(0.45).hpf(450).gain(0.075)\n  .delay(0.25).delaytime(60 / 122 * 0.75).delayfeedback(0.32);\nconst vocalReply = s(\"~ ~ nightvox:4 ~\").slow(4).speed(\"<0.78 0.88>\")\n  .begin(0.12).end(0.55).hpf(500).gain(0.06);\nvocals$: journey(silence, silence, breath, breath,\n  silence, stack(breath, vocalReply), breath, silence);\n\n// LIVE: start with kick + hats + chords; add bass, percussion, then melody.\n// During 'breathe', bring up the chord/lead reverb gently with the bottom knobs.\n// For a larger return, mute kick + bass, wait eight bars, then release both.\n// To change the harmony, edit harmony AND roots together.\n"
+}
