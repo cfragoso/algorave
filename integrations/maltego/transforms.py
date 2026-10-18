@@ -1,6 +1,5 @@
 """Graph navigation and explicit instrument commands for both Strudel decks."""
 import hashlib
-from html import escape
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
@@ -10,6 +9,33 @@ from client import AlgoraveClient
 from entities import Engine, Song, Deck, Instrument
 
 SET = 'Algorave'
+ICON_URLS = {
+    'engine': 'https://upload.wikimedia.org/wikipedia/commons/2/25/Algorave_logo.png',
+    'deck': 'https://png.pngtree.com/png-vector/20240715/ourlarge/pngtree-the-black-dj-deck-icon-with-an-eye-and-shadow-vector-png-image_7058573.png',
+    'song': 'https://cdn-icons-png.flaticon.com/512/8403/8403974.png',
+}
+
+
+def entity_overlays(entity):
+    entity.overlays = []
+    for overlay in entity.Config.overlays or []:
+        entity.add_overlay(OverlayTypes(overlay.overlay_type), OverlayPositions(overlay.position), overlay.property_name)
+    return entity
+
+
+def watch_input(entity, context):
+    # Input-only entities are not automatically observed by the SDK's output graph.
+    # Subscribe them to its existing observers so navigation also emits UPDATE events.
+    for observer in context.graph.get_observers():
+        entity.register(observer)
+
+
+def refresh_engine(entity, session, url):
+    put(entity, label=(session.get('setup') or {}).get('name') or 'Algorave Engine',
+        identity=entity.identity or url, engine_url=url)
+    entity.icon_url = ICON_URLS['engine']
+    return entity
+
 
 
 def digest(code):
@@ -18,29 +44,26 @@ def digest(code):
 
 def put(entity, **properties):
     for name, value in properties.items():
-        entity.set_property('algorave.' + name, value)
+        entity.set_property('algorave.' + ('id' if name == 'identity' else name), value)
+    if entity.icon_url:
+        entity.set_property(entity.ICON_URL_PROPERTY_ID, entity.icon_url, matching_rule='loose')
     return entity
 
 
 def song_entity(url, song):
-    return put(Song(f"{url}/songs/{song['id']}"), engine_url=url, song_id=song['id'],
-               song_name=song['name'], label=song['name'], bpm=song['bpm'])
+    return put(Song(song['name'], icon_url=ICON_URLS['song']), identity=f"{url}/songs/{song['id']}",
+               engine_url=url, song_id=song['id'], song_name=song['name'],
+               label=song['name'], bpm=song['bpm'])
 
 
 def deck_entity(url, state):
     song = state.get('song') or {}
     playing = bool(state.get('playback'))
-    colour = 'red' if playing else 'green'
-    label = f"Deck {state['deck']} · {'PLAYING' if playing else 'STOPPED'} · {song.get('name', 'No song')}"
-    if song.get('bpm') is not None:
-        label += f" · {song['bpm']} BPM"
-    entity = put(Deck(f"{url}/decks/{state['deck']}"), engine_url=url, deck=state['deck'],
+    return entity_overlays(put(Deck(song.get('name', 'No song'), icon_url=ICON_URLS['deck']),
+                 identity=f"{url}/decks/{state['deck']}", engine_url=url, deck=state['deck'],
                  song_id=song.get('id', ''), song_name=song.get('name', ''),
-                 bpm=song.get('bpm'), playing=playing, colour=colour, label=label,
-                 revision=state.get('revision', 0))
-    entity.add_overlay(OverlayTypes.COLOR, OverlayPositions.CENTER, 'algorave.colour')
-    entity.add_display_field('Deck status', f'<div style="color:{colour}"><b>{escape(label)}</b></div>')
-    return entity
+                 bpm=song.get('bpm'), playing=playing, colour='red' if playing else 'green',
+                 label=song.get('name', 'No song'), revision=state.get('revision', 0)))
 
 
 def instrument_entity(url, state, track):
@@ -48,13 +71,15 @@ def instrument_entity(url, state, track):
     values = state.get('mixerValues') or []
     mix = values[column - 1] if len(values) >= column else {}
     muted = bool(mix.get('mute', 0))
-    entity = put(Instrument(f"{url}/decks/{state['deck']}/songs/{state['song']['id']}/tracks/{track['id']}"),
+    gain = mix.get('volume')
+    name = track.get('name') or track['id']
+    return entity_overlays(put(Instrument(name),
+                 identity=f"{url}/decks/{state['deck']}/songs/{state['song']['id']}/tracks/{track['id']}",
                  engine_url=url, deck=state['deck'], song_id=state['song']['id'],
                  track_id=track['id'], column=column, enabled=bool(track.get('enabled', True)),
                  muted=muted, solo=bool(mix.get('solo', 0)), code=track['code'],
                  source_hash=digest(track['code']), revision=state.get('revision', 0),
-                 label=f"{state['deck']} · {column:02d} {track['id']} · {'MUTED' if muted else 'UNMUTED'}")
-    return entity
+                 label=name, colour='red' if muted else 'green', gain=gain, gain_display=f'{gain * 100:g}%' if gain is not None else '—'))
 
 
 async def current_instrument(api, entity):
@@ -77,15 +102,19 @@ def refresh_input(entity, fresh):
 
 
 @register_transform(display_name='To Songs [Algorave]', transform_set=SET)
-async def to_songs(input_entity: Engine) -> List[Song]:
+async def to_songs(input_entity: Engine, context: MaltegoContext) -> List[Song]:
     async with AlgoraveClient(input_entity.engine_url) as api:
+        watch_input(input_entity, context)
+        refresh_engine(input_entity, await api.request('GET', '/api/session/state'), api.url)
         return [song_entity(api.url, song) for song in await api.request('GET', '/api/songs')]
 
 
 @register_transform(display_name='To Decks [Algorave]', transform_set=SET)
-async def to_decks(input_entity: Engine) -> List[Deck]:
+async def to_decks(input_entity: Engine, context: MaltegoContext) -> List[Deck]:
     async with AlgoraveClient(input_entity.engine_url) as api:
         state = await api.request('GET', '/api/session/state')
+        watch_input(input_entity, context)
+        refresh_engine(input_entity, state, api.url)
         return [deck_entity(api.url, state['decks'][deck]) for deck in ('A', 'B')]
 
 
@@ -205,3 +234,10 @@ async def load_into_deck(input_entity: Song, settings: Dict[str, Any]) -> Deck:
     async with AlgoraveClient(input_entity.engine_url) as api:
         await api.write(f'/api/decks/{deck}/songs/load', {'id': input_entity.song_id}, method='POST')
         return deck_entity(api.url, await api.state(deck))
+
+
+@register_transform(display_name='Refresh Setup [Algorave]', transform_set=SET,
+                    description='Refresh the engine value to the currently loaded setup name.')
+async def refresh_setup(input_entity: Engine) -> Engine:
+    async with AlgoraveClient(input_entity.engine_url) as api:
+        return refresh_engine(input_entity, await api.request('GET', '/api/session/state'), api.url)

@@ -47,9 +47,29 @@ Drag **Algorave Engine** from the Algorave palette category into a graph. Its de
 | `maltego.algorave.instrument` | Unmute | Set the channel mute control to 0 |
 | `maltego.algorave.instrument` | Update | Apply the edited component code to that instrument |
 
-Deck labels show deck ID, playing/stopped state, song name and BPM. Decks have a red colour overlay while playing and a green overlay while stopped, plus a coloured status field. These are snapshots when **To Decks** runs: rerun it to refresh the graph. They indicate transport state, not measured audible output; a playing deck may still be silent because of the mixer. Stable identities and loose matching on mutable properties allow results to merge with existing graph nodes.
+Entity values and overlays are snapshots when transforms run:
 
-To Instrument returns every track slot in the loaded score (normally eight), with channel number, enabled, muted, solo and component code. `Enabled` describes inclusion in the arrangement. `Muted` is the channel's mute control; solo on another track, master volume and the crossfader also affect audibility. Instruments on A and B remain separate, even when both decks load the same song.
+| Entity | Value below icon | North | Northwest | West |
+| --- | --- | --- | --- | --- |
+| Engine | Current setup name | — | — | — |
+| Deck | Loaded song name, or No song | A / B | Red playing, green stopped | BPM |
+| Instrument | Instrument name | Channel 1–8 | Red muted, green unmuted | Channel gain as a percentage |
+
+Engine navigation (**To Songs**, **To Decks**) also refreshes the input engine name and icon. **Refresh Setup** updates just the engine. Play/Stop/Sync and instrument actions refresh the changed entity. These are graph snapshots, not a continuous telemetry subscription. Instrument gain is the software channel fader, not a parsed `.gain()` expression in source code, and an unknown gain is shown as `—`. Mute colour reflects the explicit mute control; solo, arrangement membership and the main mixer can still affect audibility.
+
+Stable hidden routing identities remain separate from the visible values so similarly named songs/instruments on different decks do not merge accidentally. To Instrument returns all track slots in the loaded score, normally eight.
+
+## Desktop icon and overlay migration
+
+Older saved graphs can retain entity definitions pointing at the Unknown icon even after the SDK icons have installed. The supplied [desktop/algorave-entities.mtz](desktop/algorave-entities.mtz) contains the four corrected entity definitions, three icon families and overlay mappings in Desktop import format.
+
+1. Use Maltego's **Import Config** wizard to import that file. Include both **Entities** and **Icons**, and replace the existing Algorave definitions when prompted.
+2. Refresh the integration from `https://127.0.0.1:8081/seed` to discover **Refresh Setup**.
+3. Use a new graph for a clean check, add an Algorave Engine, and run **To Decks**, then **To Instrument**. Existing saved graphs may keep their own older definitions; rerun transforms to refresh entity values and per-entity overlays/icons.
+
+Returned engine, deck and song entities also carry explicit public image URLs as a fallback independent of the installed type icon. That fallback requires access to the original image hosts. The MTZ's type icons are bundled locally and remain usable offline. The pack does not contain credentials, graphs or setup data.
+
+Rebuild the pack after entity-definition changes with `.venv/bin/python build_entity_pack.py`. Archive contents and mappings are tested; the final import/rendering step must be checked in the user's Desktop client.
 
 ## Perform from the graph
 

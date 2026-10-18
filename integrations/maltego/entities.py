@@ -2,13 +2,13 @@
 from pathlib import Path
 
 from maltego.server import (MaltegoEntity, MaltegoEntityConfig, MaltegoEntityProperty as MEF,
-                            register_entity)
+                            register_entity, Overlay, OverlayTypes, OverlayPositions)
 
 
-def config(name, plural, root=False, icon=None):
-    return MaltegoEntityConfig(value_property='algorave.id', display_property='algorave.label',
+def config(name, plural, root=False, icon=None, overlays=None):
+    return MaltegoEntityConfig(value_property='algorave.label', display_property='algorave.label',
                               display_name=name, display_name_plural=plural,
-                              category='Algorave', allowed_root=root,
+                              category='Algorave', allowed_root=root, overlays=overlays,
                               icon_resource=(f'algorave-{icon}', str(Path(__file__).parent / 'icons' / f'{icon}.png')) if icon else None)
 
 
@@ -42,7 +42,10 @@ class Deck(MaltegoEntity):
     engine_url: str = MEF(matching_rule='loose', name='algorave.engine_url', display_name='Engine URL',
                           value='http://127.0.0.1:3000')
     TYPE_NAME = 'maltego.algorave.decks'
-    Config = config('Algorave Deck', 'Algorave Decks', icon='deck')
+    Config = config('Algorave Deck', 'Algorave Decks', icon='deck', overlays=[
+        Overlay(OverlayTypes.TEXT, OverlayPositions.NORTH, 'algorave.deck'),
+        Overlay(OverlayTypes.COLOR, OverlayPositions.NORTHWEST, 'algorave.colour'),
+        Overlay(OverlayTypes.TEXT, OverlayPositions.WEST, 'algorave.bpm')])
     deck: str = MEF(matching_rule='loose', name='algorave.deck', readonly=True)
     song_id: str = MEF(matching_rule='loose', name='algorave.song_id', readonly=True)
     song_name: str = MEF(matching_rule='loose', name='algorave.song_name', readonly=True)
@@ -59,7 +62,10 @@ class Instrument(MaltegoEntity):
     engine_url: str = MEF(matching_rule='loose', name='algorave.engine_url', display_name='Engine URL',
                           value='http://127.0.0.1:3000')
     TYPE_NAME = 'maltego.algorave.instrument'
-    Config = config('Algorave Instrument', 'Algorave Instruments')
+    Config = config('Algorave Instrument', 'Algorave Instruments', overlays=[
+        Overlay(OverlayTypes.TEXT, OverlayPositions.NORTH, 'algorave.column'),
+        Overlay(OverlayTypes.COLOR, OverlayPositions.NORTHWEST, 'algorave.colour'),
+        Overlay(OverlayTypes.TEXT, OverlayPositions.WEST, 'algorave.gain_display')])
     deck: str = MEF(matching_rule='loose', name='algorave.deck', readonly=True)
     song_id: str = MEF(matching_rule='loose', name='algorave.song_id', readonly=True)
     track_id: str = MEF(matching_rule='loose', name='algorave.track_id', readonly=True)
@@ -70,4 +76,7 @@ class Instrument(MaltegoEntity):
     revision: int = MEF(matching_rule='loose', name='algorave.revision', readonly=True)
     code: str = MEF(matching_rule='loose', name='algorave.code', display_name='Component code (edit then Update)',
                     description='Strudel pattern expression for this instrument; not the entire score.')
+    colour: str = MEF(matching_rule='loose', name='algorave.colour', readonly=True)
+    gain: float = MEF(matching_rule='loose', name='algorave.gain', display_name='Channel gain (0–1)', readonly=True)
+    gain_display: str = MEF(matching_rule='loose', name='algorave.gain_display', display_name='Channel gain (%)', readonly=True)
     source_hash: str = MEF(matching_rule='loose', name='algorave.source_hash', readonly=True, hidden=True)

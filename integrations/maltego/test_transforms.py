@@ -23,7 +23,7 @@ class TransformTests(unittest.IsolatedAsyncioTestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
         self.states = {deck: {'deck': deck, 'song': copy.deepcopy(SONG), 'revision': 2,
-                             'playback': deck == 'A', 'mixerValues': [{'mute': 0, 'solo': 0}] * 2}
+                             'playback': deck == 'A', 'mixerValues': [{'mute': 0, 'solo': 0, 'volume': .65}] * 2}
                        for deck in ('A', 'B')}
         self.master = {'channels': {'A': {'volume': .8}, 'B': {'volume': .8}}}
         self.writes = []
@@ -33,6 +33,7 @@ class TransformTests(unittest.IsolatedAsyncioTestCase):
         self.factory = patch.object(tf, 'AlgoraveClient', lambda url: AlgoraveClient(url, transport=self.transport))
         self.factory.start()
         self.addCleanup(self.factory.stop)
+        self.context = SimpleNamespace(graph=SimpleNamespace(get_observers=lambda: []))
         self.engine = Engine('engine')
         self.deck = tf.deck_entity(URL, self.states['A'])
         self.instrument = tf.instrument_entity(URL, self.states['A'], self.states['A']['song']['tracks'][0])
@@ -74,7 +75,7 @@ class TransformTests(unittest.IsolatedAsyncioTestCase):
         if path == '/api/songs':
             return httpx.Response(200, json=[SONG])
         if path == '/api/session/state':
-            return httpx.Response(200, json={'decks': self.states})
+            return httpx.Response(200, json={'decks': self.states, 'setup': {'name': 'Studio Session'}})
         return httpx.Response(200, json=self.states[path.split('/')[3]])
 
     async def test_discovery_includes_editable_code_and_routing(self):
@@ -94,7 +95,8 @@ class TransformTests(unittest.IsolatedAsyncioTestCase):
         await tf.play(deck)
         self.assertTrue(deck.playing)
         self.assertEqual(deck.colour, 'red')
-        self.assertIn('red', str(deck.to_v3_run_entity().model_dump()['display_information']))
+        self.assertEqual(deck.value, 'Test Song')
+        self.assertEqual(deck.colour, 'red')
         await tf.stop(deck)
         self.assertFalse(deck.playing)
         self.assertEqual(deck.colour, 'green')
@@ -142,17 +144,51 @@ class TransformTests(unittest.IsolatedAsyncioTestCase):
         for cls, name in ((Engine, 'engine'), (Song, 'song'), (Deck, 'deck')):
             self.assertEqual(cls.to_v3_entity_definition(cls).icon_resource, 'algorave-' + name)
 
+    async def test_setup_name_refreshes_engine_during_navigation(self):
+        await tf.to_decks(self.engine, self.context)
+        self.assertEqual(self.engine.value, 'Studio Session')
+        self.assertEqual(self.engine.identity, 'local-engine')
+        self.assertTrue(self.engine.icon_url.endswith('Algorave_logo.png'))
+        refreshed = await tf.refresh_setup(self.engine)
+        self.assertIs(refreshed, self.engine)
+
+    async def test_navigation_publishes_input_engine_updates(self):
+        observer = Mock()
+        context = SimpleNamespace(graph=SimpleNamespace(get_observers=lambda: [observer]))
+        await tf.to_decks(self.engine, context)
+        observer.update.assert_called()
+        properties = [prop for call in observer.update.call_args_list
+                      if call.args[1] == '_properties' for prop in call.args[2]]
+        self.assertTrue(any(p.name == 'algorave.label' and p.value == 'Studio Session' for p in properties))
+
+    async def test_overlay_positions_values_and_separate_identities(self):
+        def overlays(entity):
+            return {(o['position'], o['type']): o['property_name']
+                    for o in entity.to_v3_run_entity().model_dump()['overlays']}
+        self.assertEqual(overlays(self.deck), {('N','text'): 'algorave.deck',
+                         ('NW','color'): 'algorave.colour', ('W','text'): 'algorave.bpm'})
+        self.assertEqual(overlays(self.instrument), {('N','text'): 'algorave.column',
+                         ('NW','color'): 'algorave.colour', ('W','text'): 'algorave.gain_display'})
+        self.assertEqual(self.instrument.value, 'kick')
+        self.assertEqual(self.instrument.gain_display, '65%')
+        self.assertEqual(self.instrument.colour, 'green')
+        await tf.mute(self.instrument)
+        self.assertEqual(self.instrument.colour, 'red')
+        self.assertNotEqual(self.deck.identity, tf.deck_entity(URL, self.states['B']).identity)
+        self.assertEqual(Deck.to_v3_entity_definition(Deck).properties.value, 'algorave.label')
+
     async def test_catalogue_and_song(self):
-        songs = await tf.to_songs(self.engine)
+        songs = await tf.to_songs(self.engine, self.context)
         loaded = await tf.to_song(self.deck)
         self.assertEqual(songs[0].value, loaded.value)
         self.assertEqual(songs[0].bpm, 120)
 
     async def test_decks_layout_and_serialization(self):
-        a, b = await tf.to_decks(self.engine)
+        a, b = await tf.to_decks(self.engine, self.context)
         self.assertEqual((a.colour, b.colour), ('red', 'green'))
         self.assertIn('Test Song', a.label)
-        self.assertIn('120 BPM', a.label)
+        self.assertEqual(a.value, 'Test Song')
+        self.assertEqual(a.bpm, 120)
         serialized = a.to_v3_run_entity().model_dump()
         self.assertTrue(serialized['overlays'])
         self.assertNotIn('test-secret', json.dumps(serialized))
