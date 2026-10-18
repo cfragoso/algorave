@@ -155,3 +155,24 @@ test('two decks isolate songs, edits, transport, failures and telemetry; main mi
   host.send({type:'release'});for(let i=0;i<100&&(await request('/api/decks/A/state')).body.playerConnected;i++)await new Promise(r=>setTimeout(r,5));
   session=(await request('/api/session/state')).body;assert.equal(session.playerConnected,false);assert.equal(session.decks.A.playerConnected,false);assert.equal(session.decks.B.playback,false);
 });
+
+test('named setups persist and restore both decks only after the audio owner acknowledges',async t=>{
+ const {mkdtemp,rm}=await import('node:fs/promises');const {tmpdir}=await import('node:os');const directory=await mkdtemp(tmpdir()+'/algorave-setups-');t.after(()=>rm(directory,{recursive:true,force:true}));
+ const {request,connect}=await fixture(t,{setupDir:directory});
+ const saved=await request('/api/setups','POST',{name:'Sunday in Berlin'});assert.equal(saved.status,201);
+ assert.equal((await request('/api/setups/'+saved.body.id+'/load','POST',{})).body.status,'applied');
+ const modified=structuredClone(saved.body);modified.name='Afterhours';modified.mixer.crossfader=.25;modified.decks.B.mix[0].volume=.15;modified.ui.midiTarget='B';
+ const imported=await request('/api/setups/import','POST',modified);assert.equal(imported.status,201);assert.notEqual(imported.body.id,saved.body.id);
+ assert.equal((await request('/api/setups')).body.length,2);assert.equal((await request('/api/setups/'+imported.body.id)).body.decks.B.mix[0].volume,.15);
+ const host=await connect(undefined,'?scope=session');host.send({type:'claim'});const lease=await host.wait('sync');const players=[];
+ for(const id of ['A','B']){const p=await connect(undefined,'?deck='+id);p.send({type:'claim',ownerId:lease.ownerId});await p.wait('sync');players.push(p);}
+ const restore=await request('/api/setups/'+imported.body.id+'/load','POST',{});assert.equal(restore.status,202);await host.wait('restoreSetup');
+ assert.equal((await request('/api/session/state')).body.setup.name,'Sunday in Berlin');assert.equal((await request('/api/decks/A/transport','POST',{action:'play'})).status,409);
+ host.send({type:'result',jobId:restore.body.id,ok:false,error:'Bad score'});
+ const settle=async id=>{for(let i=0;i<100;i++){if((await request('/api/jobs/'+id)).body.status!=='pending')return;await new Promise(r=>setTimeout(r,5));}throw new Error('Job timeout');};await settle(restore.body.id);
+ assert.equal((await request('/api/session/state')).body.setup.name,'Sunday in Berlin');
+ const retry=await request('/api/setups/'+imported.body.id+'/load','POST',{});await host.wait('restoreSetup');host.send({type:'result',jobId:retry.body.id,ok:true,bpms:{A:134,B:134}});await settle(retry.body.id);
+ const state=(await request('/api/session/state')).body;assert.equal(state.setup.name,'Afterhours');assert.equal(state.mixer.crossfader,.25);assert.equal(state.decks.B.mixerValues[0].volume,.15);assert.equal(state.ui.midiTarget,'B');assert.equal(state.decks.A.playback,false);
+ const sync=await request('/api/decks/B/sync','POST',{});assert.equal(sync.status,202);const command=await players[1].wait('apply');assert.equal(command.operation.type,'beatSync');assert.equal(command.operation.source,'A');assert.equal(command.song.bpm,134);players[1].send({type:'result',jobId:sync.body.id,ok:true,bpm:134,playing:false});await settle(sync.body.id);
+ modified.decks.A.mix[0].volume=9;assert.equal((await request('/api/setups/import','POST',modified)).status,400);
+});

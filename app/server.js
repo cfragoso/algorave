@@ -10,6 +10,7 @@ import {validRanges} from './public/activity.js';
 import {normalizeTelemetry} from './public/monitor.js';
 import {defaultMaster, patchMaster} from './public/master-model.js';
 import {createLightsGateway} from './lights-gateway.js';
+import {createSetupStore,validateSetup,validateUi,validateStrips,defaultUi,defaultStrip} from './setup-store.js';
 
 const appDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(appDir);
@@ -22,7 +23,7 @@ const equal = (a, b) => {
   return x.length === y.length && timingSafeEqual(x, y);
 };
 
-export async function createControlServer({token = '', timeoutMs = 10000, initialSong, initialRevision = 0} = {}) {
+export async function createControlServer({token = '', timeoutMs = 10000, initialSong, initialRevision = 0, initialSession, setupDir = process.env.ALGORAVE_DATA_DIR || path.join(appDir,'data','setups')} = {}) {
   const songs = new Map();
   for (const name of await readdir(path.join(root, 'songs'))) {
     try {
@@ -34,21 +35,30 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
   }
   const decks = Object.fromEntries(['A','B'].map(id => [id, {
     song: id === 'A' && initialSong ? withSource(validateSong(initialSong)) : structuredClone(songs.get('live-set')),
-    revision: id === 'A' ? initialRevision : 0, player: null, pending: null, playback: false, telemetry: null, telemetryAt: 0,
+    revision: id === 'A' ? initialRevision : 0, player: null, pending: null, playback: false, telemetry: null, telemetryAt: 0, stripValues:defaultStrip(),
   }]));
+  const setups=createSetupStore(setupDir);let currentSetup={id:null,name:'Untitled set'},ui=defaultUi();
+  const snapshot=name=>validateSetup({schema:'algorave-setup',version:1,name,decks:Object.fromEntries(['A','B'].map(id=>[id,{song:decks[id].song,mix:decks[id].stripValues}])),mixer:master,ui});
+  const setupBusy=()=>masterPending?.setup || Object.values(decks).some(d=>d.pending);
   let masterFrame=null, masterFrameAt=0;
   let master = defaultMaster(), masterPlayer = null, ownerId = null, masterPending = null;
   const jobs = new Map(), lights = createLightsGateway();
+  if(initialSession){
+    for(const id of ['A','B']){const saved=initialSession.decks?.[id];if(saved?.song){decks[id].song=withSource(validateSong(saved.song));decks[id].revision=saved.revision||0;decks[id].stripValues=validateStrips(saved.mixerValues||saved.telemetry?.mixer?.values||defaultStrip());}}
+    if(initialSession.mixer)master=patchMaster(defaultMaster(),initialSession.mixer);
+    if(initialSession.ui)ui=validateUi(initialSession.ui);
+    if(initialSession.setup)currentSetup=initialSession.setup;
+  }
   const cookie = randomBytes(32).toString('hex');
-  const ws = new WebSocketServer({noServer: true, maxPayload: 256000});
+  const ws = new WebSocketServer({noServer: true, maxPayload: 600000});
   const authenticated = req => !token || equal(req.headers.authorization, 'Bearer ' + token) ||
     equal((req.headers.cookie || '').split(';').map(p => p.trim()).find(p => p.startsWith('algorave='))?.slice(9), cookie);
   const sameOrigin = req => !req.headers.origin || req.headers.origin === 'http://' + req.headers.host ||
     req.headers.origin === 'https://' + req.headers.host;
   const state = id => {const d=decks[id]; return {deck:id,song:d.song,revision:d.revision,playerConnected:!!d.player,
-    playback:d.playback,pendingJob:d.pending?.id ?? null,telemetry:Date.now()-d.telemetryAt<2000?d.telemetry:null};};
-  const session = () => ({decks:{A:state('A'),B:state('B')},mixer:master,
-    telemetry:Date.now()-masterFrameAt<2000?masterFrame:null,playerConnected:!!masterPlayer,pendingJob:masterPending?.id ?? null,lights:lights.state()});
+    mixerValues:d.stripValues,syncAvailable:!!masterPlayer && !!decks[id==='A'?'B':'A'].player,playback:d.playback,pendingJob:d.pending?.id ?? null,telemetry:Date.now()-d.telemetryAt<2000?d.telemetry:null};};
+  const session = () => ({setup:currentSetup,ui,decks:{A:state('A'),B:state('B')},mixer:master,
+    telemetry:Date.now()-masterFrameAt<2000?masterFrame:null,restoring:!!masterPending?.setup,playerConnected:!!masterPlayer,pendingJob:masterPending?.id ?? null,lights:lights.state()});
   const send = (client, value) => client?.readyState === WebSocket.OPEN && client.send(JSON.stringify(value));
   const broadcast = () => ws.clients.forEach(client => send(client,{type:'state',...(client.scope==='session'?session():state(client.deck))}));
   const finish = (d,status,error) => {
@@ -58,6 +68,7 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
   const failDeck = (id,reason) => {const d=decks[id]; d.player?.terminate();d.player=null;d.playback=false;d.telemetry=null;finish(d,'failed',reason);};
   const enqueue = (id,candidate,operation=null) => {
     const d=decks[id];
+    if(masterPending?.setup || Object.values(decks).some(x=>x.pending?.operation?.type==='beatSync'))return {status:409,body:{error:'Session restore or beat sync is pending'}};
     if(!d.player)return {status:409,body:{error:'Open the app and click Enable audio device first'}};
     if(d.pending)return {status:409,body:{error:'An update is pending',jobId:d.pending.id}};
     const jobId=randomUUID(); jobs.set(jobId,{id:jobId,deck:id,status:'pending',revision:d.revision+(candidate?1:0)});
@@ -65,23 +76,36 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
     d.pending={id:jobId,candidate,operation,timer:setTimeout(()=>{
       failDeck(id,'Audio device did not acknowledge the update; re-enable it');broadcast();
     },timeoutMs)};
-    send(d.player,{type:candidate?'apply':'command',jobId,revision:d.revision+(candidate?1:0),...(candidate?{song:candidate}:{operation})});
+    send(d.player,{type:candidate?'apply':'command',jobId,revision:d.revision+(candidate?1:0),...(candidate?{song:candidate}:{}),...(operation?{operation}:{})});
     broadcast();return {status:202,body:jobs.get(jobId)};
   };
   const enqueueMaster = candidate => {
     if(!masterPlayer)return {status:409,body:{error:'Enable the main audio device first'}};
-    if(masterPending)return {status:409,body:{error:'A mixer update is pending'}};
+    if(masterPending || Object.values(decks).some(d=>d.pending?.operation?.type==='beatSync'))return {status:409,body:{error:'A mixer update is pending'}};
     const id=randomUUID();jobs.set(id,{id,status:'pending'});if(jobs.size>100)jobs.delete(jobs.keys().next().value);
     masterPending={id,candidate,timer:setTimeout(()=>{masterPlayer?.terminate();masterPlayer=null;ownerId=null;
       Object.assign(jobs.get(id),{status:'failed',error:'Mixer acknowledgement timed out'});masterPending=null;
       for(const id of ['A','B'])failDeck(id,'Main audio device disconnected');broadcast();},timeoutMs)};
     send(masterPlayer,{type:'mixer',jobId:id,mixer:candidate});broadcast();return {status:202,body:jobs.get(id)};
   };
+  const commitSetup = setup => {
+    for(const id of ['A','B']){const d=decks[id];d.song=structuredClone(setup.decks[id].song);d.stripValues=structuredClone(setup.decks[id].mix);d.revision++;d.playback=false;d.telemetry=null;}
+    master=structuredClone(setup.mixer);ui=structuredClone(setup.ui);currentSetup={id:setup.id,name:setup.name};masterFrame=null;
+  };
+  const loadSetup = setup => {
+    setup=structuredClone(setup);setup.mixer.sinkId=master.sinkId;
+    if(setupBusy() || masterPending) return {status:409,body:{error:'Wait for pending updates before loading a setup'}};
+    if(!masterPlayer){if(Object.values(decks).some(d=>d.player))return {status:409,body:{error:'Use the main studio to restore both decks'}};commitSetup(setup);broadcast();return {status:200,body:{status:'applied',name:setup.name}};}
+    if(Object.values(decks).some(d=>!d.player))return {status:409,body:{error:'Both decks must be enabled before restoring a setup'}};
+    const id=randomUUID();jobs.set(id,{id,status:'pending'});if(jobs.size>100)jobs.delete(jobs.keys().next().value);
+    masterPending={id,setup,timer:setTimeout(()=>{releaseMaster('Setup restore timed out');},timeoutMs)};
+    send(masterPlayer,{type:'restoreSetup',jobId:id,setup});broadcast();return {status:202,body:jobs.get(id)};
+  };
   const body = async req => {
     let data = '';
     for await (const chunk of req) {
       data += chunk;
-      if (data.length > 200000) throw new Error('Request too large');
+      if (data.length > 600000) throw new Error('Request too large');
     }
     return JSON.parse(data || '{}');
   };
@@ -96,6 +120,16 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
       }
       if (url.pathname.startsWith('/api/')) {
         if (!authenticated(req)) return json(res, 401, {error: 'API token required'});
+        if(url.pathname==='/api/session/ui' && req.method==='PATCH'){ui=validateUi(await body(req));broadcast();return json(res,200,ui);}
+        if(url.pathname==='/api/setups' && req.method==='GET')return json(res,200,await setups.list());
+        if(url.pathname==='/api/setups' && req.method==='POST'){
+          if(setupBusy()||masterPending)return json(res,409,{error:'Wait for pending updates before saving'});
+          const input=await body(req),saved=await setups.save(snapshot(input.name),input.id);
+          currentSetup={id:saved.id,name:saved.name};broadcast();return json(res,201,saved);
+        }
+        if(url.pathname==='/api/setups/import' && req.method==='POST')return json(res,201,await setups.save(await body(req)));
+        const setupMatch=url.pathname.match(/^\/api\/setups\/([0-9a-f-]{36})(\/load)?$/);
+        if(setupMatch){const setup=await setups.get(setupMatch[1]);if(req.method==='GET'&&!setupMatch[2])return json(res,200,setup);if(req.method==='POST'&&setupMatch[2]){const result=loadSetup(setup);return json(res,result.status,result.body);}}
         if(req.method==='GET' && url.pathname==='/api/session/state')return json(res,200,session());
         if(req.method==='GET' && url.pathname==='/api/songs')return json(res,200,[...songs.values()]);
         if(req.method==='GET' && url.pathname.startsWith('/api/jobs/')){
@@ -117,7 +151,11 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
         const id=match?.[1] || 'A', d=decks[id], route=match?'/api/'+(match[2] || 'state'):url.pathname;
         if(req.method==='GET' && route==='/api/state')return json(res,200,state(id));
         let candidate, operation;
-        if(req.method==='PATCH' && route==='/api/tempo')candidate=validateSong(setSongTempo(d.song,(await body(req)).bpm));
+        if(req.method==='POST' && route==='/api/sync'){
+          const source=id==='A'?'B':'A';
+          if(!masterPlayer || !decks[source].player || decks[source].pending || masterPending)return json(res,409,{error:'Enable both decks and wait for pending updates before syncing'});
+          candidate=validateSong(setSongTempo(d.song,decks[source].song.bpm));operation={type:'beatSync',source};
+        } else if(req.method==='PATCH' && route==='/api/tempo')candidate=validateSong(setSongTempo(d.song,(await body(req)).bpm));
         else if(req.method==='POST' && route==='/api/code'){
           const input=await body(req);
           if(input.revision!==d.revision)return json(res,409,{error:'Song changed since this draft started. Download your draft, then use current song before applying again.'});
@@ -187,25 +225,26 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
             }
           } else if(message.type==='result' && client===masterPlayer && masterPending?.id===message.jobId){
             clearTimeout(masterPending.timer);
-            if(message.ok===true)master=masterPending.candidate;
+            if(message.ok===true){if(masterPending.setup){const restored=structuredClone(masterPending.setup);for(const id of ['A','B']){const bpm=message.bpms?.[id];if(Number.isFinite(bpm)&&bpm>=40&&bpm<=250)restored.decks[id].song.bpm=bpm;}commitSetup(restored);}else master=masterPending.candidate;}
             Object.assign(jobs.get(masterPending.id),{status:message.ok===true?'applied':'failed',...(message.ok===true?{}:{error:message.error||'Mixer rejected update'})});masterPending=null;broadcast();
           } else if(message.type==='release' && client===masterPlayer){
             releaseMaster('Main audio device released');
           }
           return;
         }
-        if(message.type==='claim'){
+        if(message.type==='ready' && client===d.player){if(Number.isFinite(message.bpm)&&message.bpm>=40&&message.bpm<=250){d.song.bpm=message.bpm;broadcast();}}else if(message.type==='claim'){
           if((d.player && d.player!==client)||(masterPlayer && message.ownerId!==ownerId))return send(client,{type:'error',error:'Another audio device is active'});
-          d.player=client;send(client,{type:'sync',song:d.song,revision:d.revision});broadcast();
+          d.player=client;send(client,{type:'sync',song:d.song,revision:d.revision,mixerValues:d.stripValues});broadcast();
         } else if(message.type==='release' && client===d.player){d.player=null;d.playback=false;d.telemetry=null;finish(d,'failed','Audio device released');broadcast();}
         else if(message.type==='result' && client===d.player && d.pending && message.jobId===d.pending.id){
           if(message.ok===true){
+            if(typeof message.playing==='boolean')d.playback=message.playing;
             if(d.pending.candidate){d.song=d.pending.candidate;if(Number.isFinite(message.bpm)&&message.bpm>=40&&message.bpm<=250)d.song.bpm=message.bpm;d.revision++;d.telemetry=null;}
             if(typeof message.playing==='boolean')d.playback=message.playing;
           }
           finish(d,message.ok===true?'applied':'failed',message.ok===true?undefined:message.error||'Player rejected update');
         } else if(message.type==='telemetry' && client===d.player && message.revision===d.revision){
-          const frame=normalizeTelemetry(message.frame);if(frame){d.telemetry=frame;d.telemetryAt=Date.now();ws.clients.forEach(observer=>{
+          const frame=normalizeTelemetry(message.frame);if(frame){d.telemetry=frame;d.telemetryAt=Date.now();if(frame.mixer)d.stripValues=frame.mixer.values;ws.clients.forEach(observer=>{
             if(observer!==client && (observer.scope==='session'||observer.deck===id))send(observer,{type:'telemetry',deck:id,revision:d.revision,frame});
           });}
         } else if(message.type==='activity' && client===d.player && d.playback && message.revision===d.revision){

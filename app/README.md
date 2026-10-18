@@ -91,8 +91,16 @@ The limiter is a dynamics compressor, not a guarantee against every possible pea
 **Choose output…** uses browser audio-output selection where supported. Otherwise
 use the output menu or the computer's audio settings. Both decks share that output.
 
-Deck clocks and tempo are independent. Set matching BPM manually and start/cue
-with care: automatic beat sync, headphone cue routing, scratch and quantized song
+Deck clocks can run independently. Press **SYNC** on A to match B, or on B to
+match A. It copies the reference BPM into the target's score and aligns the
+four-beat bar phase while retaining the nearest target song bar. The reference
+deck is unchanged. A running target is re-cued immediately (its effect tails are
+cleared); a paused target stays paused and aligns when Play is pressed. If the
+reference tempo changed meanwhile, press Sync again. The small delta readout
+shows measured scheduler beat error while both decks play. This is a one-shot
+alignment, not a permanent tempo link. Re-sync after a tempo change. Browser
+stream buffering/output latency can add small audible offsets; this assumes
+four beats per Strudel cycle. Headphone cue routing, scratch and quantized song
 loading are not implemented. Pause/stop/load on A does not stop B. Song edits keep
 the current deck clock. Stop/Cue resets only that deck.
 
@@ -101,6 +109,28 @@ A/B detaches the old listener and refreshes LEDs from the new deck's software
 mix; it does not move physical faders. Knobs/faders jump to their physical values
 when moved (no pickup/soft takeover yet). The central crossfader/channel/master
 controls are on screen/API; the existing hardware mapping is unchanged.
+
+## Named setups
+
+Enter a name and click **Save setup**. The name appears above the decks and in
+the browser title. A setup stores both applied scores/BPMs, all eight instrument
+mixes for each deck (including mute/solo), main channel/EQ/crossfader/master
+settings, MIDI target and light colour/level/target controls. Unapplied editor
+drafts are separate: update the song first to include your typing in a setup.
+
+Choose an entry and **Load setup** to restore it. Both decks stop and return to
+bar 1. With audio enabled, both scores compile before the setup is committed;
+a compilation failure retains the previous setup. MIDI permissions/connections,
+lighting connection secrets and physical audio-device IDs are not exported.
+Loading preserves the current computer's output device and does not send a
+lighting command. Connect devices as needed and press Play separately.
+
+**Export JSON** downloads the saved setup. **Import JSON** adds a file to the
+library and loads it. Save again to export newer edits. Saving under the same
+name updates the current saved entry; a different name creates another setup.
+Setups survive server restarts in `app/data/setups/` (ignored by Git). Override
+that folder with `ALGORAVE_DATA_DIR`; mount `/project/app/data` as a persistent
+Docker volume. Use exported JSON to move a setup between computers.
 
 ## Build the music live
 
@@ -182,6 +212,13 @@ job per deck and one master-mixer job can be pending at a time.
 
 | Method | Endpoint | Payload / result |
 | --- | --- | --- |
+| POST | `/api/decks/A/sync` | `{}`; match B BPM and bar/beat phase |
+| GET | `/api/setups` | Saved setup IDs, names and timestamps |
+| POST | `/api/setups` | Save current state with `{ "name": "Berlin", "id": "optional existing UUID" }` |
+| GET | `/api/setups/:id` | Export setup JSON |
+| POST | `/api/setups/:id/load` | Restore a saved setup; acknowledged job when audio is active |
+| POST | `/api/setups/import` | Validate and save exported JSON; then call its load endpoint |
+| PATCH | `/api/session/ui` | MIDI target and light-control settings |
 | GET | `/api/session/state` | Both decks, main mixer, fresh master telemetry, lights |
 | GET | `/api/decks/A/state` | Deck A song, revision, playback and telemetry |
 | POST | `/api/decks/B/songs/load` | `{ "id": "south-african-awakening" }` |
@@ -277,7 +314,7 @@ expression. API sound overrides appear as `.s(...)` in the score. Applying a
 manual full-score edit makes that code the new baseline for future API overrides.
 
 Live edits and mixer values are held **in memory**. Restarting the server restores
-the kick-only set; reloading the audio browser resets its mixer. To preserve a
+the kick-only set unless a saved setup is loaded; reloading the audio browser restores the server’s last instrument mix. To preserve a
 song edit, copy the `song` object from `/api/state` into a `session.json` file,
 then restart the server. A reconnect receives the server's last confirmed song.
 Only one audio browser can claim the player role. On connection loss it stops

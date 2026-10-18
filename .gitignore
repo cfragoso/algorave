@@ -10,3 +10,6 @@ node_modules/
 *.log
 *.zip
 dist/
+
+# Local named performance setups (export JSON to share)
+app/data/

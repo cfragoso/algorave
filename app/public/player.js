@@ -1,4 +1,4 @@
-import {initStrudel, getAudioContext, webaudioOutput, getSuperdoughAudioController, initAudio} from '@strudel/web/web.mjs';
+import {initStrudel, getAudioContext, webaudioOutput, getSuperdoughAudioController, initAudio, resetGlobalEffects} from '@strudel/web/web.mjs';
 import {createMixer} from './mixer.js';
 import {sessionControls} from './session-ui.js';
 import {compileSong} from './compile.js';
@@ -7,6 +7,7 @@ import {createActivityClock} from './activity.js';
 import {createAudioMonitor} from './monitor.js';
 import {createPerformanceConsole} from './console.js';
 import {createLightsMonitor} from './lights-monitor.js';
+import {alignScheduler,nearestAlignedCycle} from './beat-sync.js';
 
 const deckId = new URLSearchParams(location.search).get('deck') === 'B' ? 'B' : 'A';
 const embedded = window.parent !== window;
@@ -15,7 +16,8 @@ const $ = id => document.getElementById(id);
 const status = message => { $('status').textContent = message; };
 let socket, engine, mixer, active = false, compiled, state, desiredSong;
 let applyQueue = Promise.resolve();
-let ready = false;
+let ready = false, pendingSync = null, syncedTo = null;
+const sharedNow=()=>embedded?parent.performance.now()/1000:performance.now()/1000;
 let audioMonitor, elapsed = 0, beganAt = null, pausedCycle = 0;
 const activity = createActivityClock();
 const api = async (url, options = {}) => {
@@ -56,6 +58,12 @@ requestAnimationFrame(animateActivity);
 // Remote feedback must not depend on this tab's paint/visibility cycle.
 setInterval(() => {
   if (active && socket?.readyState === WebSocket.OPEN && state) {
+    if(syncedTo && embedded){
+      const reference=parent.document.getElementById('frame-'+syncedTo)?.contentWindow.algoraveDeck?.clock();
+      const error=reference&&engine.scheduler.started?((engine.scheduler.now()-reference.cycle)*4+2)%4:0;
+      const wrapped=((error+4)%4)-2;
+      $('sync-info').textContent=!reference?.playing?'Reference stopped':Math.abs(reference.bpm-engine.scheduler.cps*240)>.001?'BPM differs':engine.scheduler.started?'Δ '+Math.abs(wrapped).toFixed(3)+' beats':'Aligned on Play';
+    }
     const frame = currentActivityFrame();
     send({type: 'activity', revision: state.revision, ...frame});
     const telemetry = {cycle:engine?.scheduler.started ? Math.max(0,engine.scheduler.now()) : pausedCycle,
@@ -76,6 +84,7 @@ function renderControls(next) {
   $('load').disabled = controls.loadDisabled;
   deck.state(next,active);
   $('play').disabled=$('stop').disabled=$('cue').disabled=!next.playerConnected || !!next.pendingJob;
+  $('beat-sync').disabled=!next.playerConnected||!!next.pendingJob||!next.syncAvailable;
   $('device-status').textContent = controls.hint;
 }
 
@@ -111,7 +120,7 @@ async function applySong(song, connection) {
   const {pattern: candidate, bpm} = await compileSong(song, mixer);
   if (!active || socket !== connection || connection.readyState !== WebSocket.OPEN) throw new Error('Audio device was released or disconnected');
   const wasPlaying = engine.scheduler.started;
-  activity.clear();
+  activity.clear();pendingSync=null;syncedTo=null;
   engine.setCps(bpm / 240);
   await engine.setPattern(candidate, wasPlaying);
   compiled = candidate;
@@ -207,9 +216,11 @@ async function connect() {
             else if(op.type==='stripReset')mixer.reset();
             send({type:'result',jobId:message.jobId,ok:true,playing:!!engine.scheduler.started});return;
           }
+          if(message.type==='sync' && message.mixerValues)mixer.restore(message.mixerValues);
           const bpm = await applySong(message.song, connection);
-          if (message.type === 'apply') send({type: 'result', jobId: message.jobId, ok: true, bpm});
-          else {ready=true;status('Audio device ready · press Play');}
+          if(message.operation?.type==='beatSync')await syncTo(message.operation.source);
+          if (message.type === 'apply') send({type: 'result', jobId: message.jobId, ok: true, bpm,playing:!!engine.scheduler.started});
+          else {ready=true;send({type:'ready',bpm});status('Audio device ready · press Play');}
         } catch (error) {
           if (socket !== connection || connection.readyState !== WebSocket.OPEN) return;
           if (message.type !== 'sync') send({type: 'result', jobId: message.jobId, ok: false, error: error.message});
@@ -245,15 +256,29 @@ $('enable').onclick = async () => {
 };
 async function transport(action){
   if(action==='stop'||action==='cue'){
-    engine.stop();routeOutput();elapsed=0;beganAt=null;pausedCycle=0;send({type:'playback',playing:false});status('Cued · bar 1');return;
+    pendingSync=null;syncedTo=null;$('sync-info').textContent='Match other deck';engine.stop();resetGlobalEffects();routeOutput();elapsed=0;beganAt=null;pausedCycle=0;send({type:'playback',playing:false});status('Cued · bar 1');return;
   }
   if(action==='pause'){
     if(engine.scheduler.started){pausedCycle=Math.max(0,engine.scheduler.now());if(beganAt!==null)elapsed+=getAudioContext().currentTime-beganAt;beganAt=null;engine.pause();routeOutput();}
     send({type:'playback',playing:false});status('Paused');return;
   }
-  if(!engine.scheduler.started){await getAudioContext().resume();if(!compiled)throw new Error('Wait for audio setup');await engine.setPattern(compiled,true);routeOutput();beganAt=getAudioContext().currentTime;}
+  if(!engine.scheduler.started){await getAudioContext().resume();if(!compiled)throw new Error('Wait for audio setup');if(pendingSync){const source=pendingSync;await engine.setPattern(compiled,false);await syncTo(source,true);}else await engine.setPattern(compiled,true);routeOutput();beganAt=getAudioContext().currentTime;}
   send({type:'playback',playing:true});status('Playing · '+desiredSong.name);
 }
+async function syncTo(source,start=false){
+  const other=embedded?parent.document.getElementById('frame-'+source)?.contentWindow.algoraveDeck:null;
+  const reference=other?.clock();if(!reference)throw new Error('Reference deck is unavailable');
+  if(start && Math.abs(reference.bpm-desiredSong.bpm)>.001)throw new Error('Reference tempo changed. Press Sync again before Play.');
+  const target=engine.scheduler.started?Math.max(0,engine.scheduler.now()):pausedCycle;
+  if(engine.scheduler.started || start){
+    if(beganAt!==null)elapsed+=getAudioContext().currentTime-beganAt;
+    resetGlobalEffects();routeOutput();activity.clear();
+    await alignScheduler(engine.scheduler,reference,sharedNow,target);beganAt=getAudioContext().currentTime;pendingSync=null;
+  }else{pausedCycle=nearestAlignedCycle(target,reference.cycle);pendingSync=source;}
+  syncedTo=source;status('Synced to deck '+source+' · '+reference.bpm+' BPM');
+}
+$('beat-sync').setAttribute('aria-label','Sync deck '+deckId+' to deck '+(deckId==='A'?'B':'A'));
+$('beat-sync').onclick=()=>submit('/api/sync','POST',{}).catch(showError);
 $('play').onclick=()=>submit('/api/transport','POST',{action:state.playback?'pause':'play'}).catch(showError);
 $('stop').onclick=$('cue').onclick=()=>submit('/api/transport','POST',{action:'cue'}).catch(showError);
 $('release').onclick = () => {
@@ -276,5 +301,8 @@ window.algoraveDeck={
   release(){if(active)$('release').onclick();},
   connectMidi(access){if(!active)throw new Error('Enable audio first');return mixer.connect(access);},
   disconnectMidi(){mixer?.disconnect();},
+  clock(){if(!ready)return null;return {cycle:engine.scheduler.started?Math.max(0,engine.scheduler.now()):pausedCycle,bpm:engine.scheduler.cps*240,playing:!!engine.scheduler.started,time:sharedNow()};},
+  async prepareSetup(saved){if(!active)throw new Error('Enable both decks first');const result=await compileSong(saved.song,mixer);return {...result,saved};},
+  commitSetup(prepared){engine.stop();resetGlobalEffects();routeOutput();activity.clear();mixer.restore(prepared.saved.mix);engine.setCps(prepared.bpm/240);compiled=prepared.pattern;desiredSong=prepared.saved.song;engine.setPattern(compiled,false);elapsed=0;beganAt=null;pausedCycle=0;pendingSync=null;deck.mixer(mixer.snapshot());},
 };
 if(embedded){new ResizeObserver(()=>parent.postMessage({type:'deck-height',deck:deckId,height:Math.ceil(document.body.getBoundingClientRect().height)},location.origin)).observe(document.body);}

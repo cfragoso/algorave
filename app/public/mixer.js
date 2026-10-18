@@ -37,6 +37,11 @@ export function createMixer(mapping, ref) {
   };
   return {
     reset() { values = defaults(); received = mapping.columns.map(() => []); renderLEDs(); },
+    restore(next){
+      const keys=['volume','cutoff','resonance','reverb','mute','solo'];
+      if(!Array.isArray(next)||next.length!==8||!next.every(v=>v&&keys.every(k=>Number.isFinite(v[k])&&v[k]>=0&&v[k]<=1)))throw new Error('Invalid saved instrument mix');
+      values=next.map(v=>Object.fromEntries(keys.map(k=>[k,v[k]])));received=mapping.columns.map(()=>[]);renderLEDs();
+    },
     snapshot() { return {values: values.map(v => ({...v})), received: received.map(v => [...v]),
       connected: input?.state === 'connected', ledConnected: output?.state === 'connected', template}; },
     set(column, parameter, value) {

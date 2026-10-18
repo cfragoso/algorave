@@ -12,6 +12,8 @@ COPY --from=build --chown=node:node /project/app/ ./
 COPY --chown=node:node songs/ /project/songs/
 COPY --chown=node:node vocals/strudel.json /project/vocals/strudel.json
 COPY --chown=node:node controllers/launch-control-xl/mapping.json /project/controllers/launch-control-xl/mapping.json
+RUN mkdir -p /project/app/data/setups && chown -R node:node /project/app/data
+VOLUME ["/project/app/data"]
 USER node
 EXPOSE 3000
 CMD ["node", "server.js"]

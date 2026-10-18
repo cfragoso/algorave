@@ -1,0 +1,66 @@
+{
+  "id": "german-renaissance",
+  "name": "German Renaissance",
+  "bpm": 140,
+  "key": "E minor",
+  "bars": 144,
+  "tracks": [
+    {
+      "id": "kick",
+      "column": 1,
+      "code": "renaissance(kick, kick, kick, silence, silence, kick, kick)",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "clap",
+      "column": 2,
+      "code": "renaissance(silence, clap, clap, silence, snareRise, clap, clap.gain(0.10))",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "closed_hats",
+      "column": 3,
+      "code": "renaissance(hats.gain(0.025), hats, hats, silence,\n  hats.gain(0.035), hats, hats.gain(0.035))",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "percussion",
+      "column": 4,
+      "code": "renaissance(silence, percussion, percussion, silence, silence,\n  percussion, percussion.gain(0.04))",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "bass",
+      "column": 5,
+      "code": "renaissance(silence, bass, bass, silence, silence, bass, bass)",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "lead",
+      "column": 6,
+      "code": "renaissance(silence, silence, arp, arp.slow(2).lpf(1200),\n  arp.lpf(\"<900 1200 1600 2200 2800 3400 4200 5200>/2\"), openLead, silence)",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "chords",
+      "column": 7,
+      "code": "renaissance(silence, silence, pad, pad.gain(0.055), pad,\n  pad.lpf(2500), pad.gain(0.02))",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "vocals",
+      "column": 8,
+      "code": "renaissance(silence, silence, voice, voice.slow(2), count,\n  voice, silence)",
+      "sound": null,
+      "enabled": true
+    }
+  ],
+  "code": "// GERMAN RENAISSANCE · original trance · 140 BPM · E minor\n// 144 bars / about 4:07. The whole arrangement loops.\n// Eight named parts keep the same Launch Control XL columns.\nsetcpm(140 / 4);\n\n// Intro 16 | drive 16 | flight 32 | cathedral 16 | rise 16 | return 32 | dawn 16\nfunction renaissance(intro, drive, flight, cathedral, rise, drop, dawn) {\n  return arrange([16, intro], [16, drive], [32, flight], [16, cathedral],\n    [16, rise], [32, drop], [16, dawn]);\n}\n\n// 1 · A steady foundation. Remove the kick to make the return feel enormous.\nconst kick = s(\"bd*4\").bank('tr909').gain(0.55);\nkick$: renaissance(kick, kick, kick, silence, silence, kick, kick);\n\n// 2 · Backbeat clap; the final two build bars tighten into a snare roll.\nconst clap = s(\"~ cp ~ cp\").bank('tr909').gain(0.20);\nconst snareRise = arrange([8, silence], [4, s(\"sd*4\")], [2, s(\"sd*8\")],\n  [1, s(\"sd*16\")], [1, s(\"sd*32\")]).bank('tr909').gain(0.08);\nclap$: renaissance(silence, clap, clap, silence, snareRise, clap, clap.gain(0.10));\n\n// 3 · Driving sixteenths, with space on the downbeats.\nconst hats = s(\"[~ hh hh hh]*4\").bank('tr909').gain(\"0.07 0.04 0.06\");\nclosed_hats$: renaissance(hats.gain(0.025), hats, hats, silence,\n  hats.gain(0.035), hats, hats.gain(0.035));\n\n// 4 · Open hats and a restrained rim pattern.\nconst percussion = stack(\n  s(\"[~ oh]*4\").bank('tr909').gain(0.08).cut(4),\n  s(\"~ rim ~ ~ ~ ~ rim ~\").bank('tr909').gain(0.055)\n);\npercussion$: renaissance(silence, percussion, percussion, silence, silence,\n  percussion, percussion.gain(0.04));\n\n// 5 · E–C–G–D roots. The three offbeat notes leave room for the kick.\nconst bass = note(\"<e2 c2 g1 d2>/4\").s('sawtooth')\n  .struct(\"[~ x x x]*4\").attack(0.003).decay(0.10).sustain(0)\n  .release(0.025).lpf(800).gain(0.17);\nbass$: renaissance(silence, bass, bass, silence, silence, bass, bass);\n\n// 6 · Change this motif to make the lead your own.\nconst melody = \"e4 b4 g4 b4 e5 b4 g4 b4 c5 g4 e4 g4 c5 g4 e4 g4\";\nconst arp = note(melody).s('supersaw').attack(0.008).decay(0.15)\n  .sustain(0.12).release(0.10).lpf(2600).room(0.25).gain(0.055);\nconst openLead = arp.lpf(5200).gain(0.075);\nlead$: renaissance(silence, silence, arp, arp.slow(2).lpf(1200),\n  arp.lpf(\"<900 1200 1600 2200 2800 3400 4200 5200>/2\"), openLead, silence);\n\n// 7 · Long, bright minor harmony under the arpeggio.\nconst harmony = \"<[e3,g3,b3,e4] [c3,e3,g3,c4] [g2,b2,d3,g3] [d3,fs3,a3,d4]>/4\";\nconst pad = note(harmony).s('supersaw').attack(0.5).decay(0.4)\n  .sustain(0.65).release(1.1).lpf(1700).room(0.45).gain(0.035);\nchords$: renaissance(silence, silence, pad, pad.gain(0.055), pad,\n  pad.lpf(2500), pad.gain(0.02));\n\n// 8 · Sparse spoken texture and a count into the return.\nconst voice = s(\"nightvox:4 ~ ~ ~\").slow(4).room(0.55).gain(0.065);\nconst count = arrange([12, silence], [4, s(\"nightvox:<0 1 2 3>\")])\n  .room(0.2).gain(0.10);\nvocals$: renaissance(silence, silence, voice, voice.slow(2), count,\n  voice, silence);\n"
+}
