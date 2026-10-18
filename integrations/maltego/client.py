@@ -48,8 +48,8 @@ class AlgoraveClient:
             raise MaltegoException('Deck must be A or B. Extract fresh deck entities from the engine.')
         return await self.request('GET', f'/api/decks/{deck}/state')
 
-    async def write(self, path, data):
-        job = await self.request('PATCH', path, data)
+    async def write(self, path, data, method='PATCH'):
+        job = await self.request(method, path, data)
         job_id = job.get('id')
         if not job_id:
             raise MaltegoException('API did not return an acknowledgement job. Inspect the deck before retrying.')

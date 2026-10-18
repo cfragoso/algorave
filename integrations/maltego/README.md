@@ -38,6 +38,11 @@ Drag **Algorave Engine** from the Algorave palette category into a graph. Its de
 | `maltego.algorave.engine` | To Decks | Decks A and B as `maltego.algorave.decks` |
 | `maltego.algorave.decks` | To Instrument | Channel instruments as `maltego.algorave.instrument` |
 | `maltego.algorave.decks` | To Song | Song currently loaded in that deck, or no result if empty |
+| `maltego.algorave.decks` | Play | Start the selected deck |
+| `maltego.algorave.decks` | Stop | Stop the selected deck |
+| `maltego.algorave.decks` | Beat Sync | Match the selected deck to the other deck's BPM and beat phase |
+| `maltego.algorave.decks` | Change Volume | Prompt for a whole number 0–100; change that deck's main mixer channel fader |
+| `maltego.algorave.song` | Load into Deck | Prompt for A or B; load this catalogue song into the destination deck |
 | `maltego.algorave.instrument` | Mute | Set the channel mute control to 1 |
 | `maltego.algorave.instrument` | Unmute | Set the channel mute control to 0 |
 | `maltego.algorave.instrument` | Update | Apply the edited component code to that instrument |
@@ -45,6 +50,16 @@ Drag **Algorave Engine** from the Algorave palette category into a graph. Its de
 Deck labels show deck ID, playing/stopped state, song name and BPM. Decks have a red colour overlay while playing and a green overlay while stopped, plus a coloured status field. These are snapshots when **To Decks** runs: rerun it to refresh the graph. They indicate transport state, not measured audible output; a playing deck may still be silent because of the mixer. Stable identities and loose matching on mutable properties allow results to merge with existing graph nodes.
 
 To Instrument returns every track slot in the loaded score (normally eight), with channel number, enabled, muted, solo and component code. `Enabled` describes inclusion in the arrangement. `Muted` is the channel's mute control; solo on another track, master volume and the crossfader also affect audibility. Instruments on A and B remain separate, even when both decks load the same song.
+
+## Perform from the graph
+
+Run **Play**, **Stop** or **Beat Sync** on a deck entity. The selected deck is the sync target: syncing A matches it to B, and syncing B matches it to A. Enable both audio decks and wait for pending operations before syncing. A stopped synced deck remains stopped; it aligns when played, following the app's existing behavior.
+
+**Change Volume** opens a required transform-setting prompt for a whole number from 0 through 100. It updates the selected deck's main mixer channel volume (0–1 internally), leaving the master gain, crossfader and instrument faders alone. A muted instrument or a crossfader at the opposite end can still silence that deck.
+
+On a song entity, **Load into Deck** asks for destination A or B and returns the loaded deck with its current status. It loads the song by catalogue ID, including when the song entity was extracted from a deck: unsaved edits in that deck are not copied. Loading does not issue a Play command; existing playback follows the app's normal load behavior. Deck actions target the current contents of that deck, even if the graph's song label was extracted earlier.
+
+All actions wait for the app's acknowledgement job. An enabled browser audio player is required. To pick up new transforms, prompts and icons, refresh/reinstall the integration from its HTTPS seed. The engine, deck and song icons use the three supplied image URLs; the instrument icon remains unchanged.
 
 ## Edit an instrument
 

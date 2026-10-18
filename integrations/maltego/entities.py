@@ -1,12 +1,15 @@
 """Custom entities are distributed automatically through SDK discovery."""
+from pathlib import Path
+
 from maltego.server import (MaltegoEntity, MaltegoEntityConfig, MaltegoEntityProperty as MEF,
                             register_entity)
 
 
-def config(name, plural, root=False):
+def config(name, plural, root=False, icon=None):
     return MaltegoEntityConfig(value_property='algorave.id', display_property='algorave.label',
                               display_name=name, display_name_plural=plural,
-                              category='Algorave', allowed_root=root)
+                              category='Algorave', allowed_root=root,
+                              icon_resource=(f'algorave-{icon}', str(Path(__file__).parent / 'icons' / f'{icon}.png')) if icon else None)
 
 
 @register_entity
@@ -14,7 +17,7 @@ class Engine(MaltegoEntity):
     engine_url: str = MEF(matching_rule='loose', name='algorave.engine_url', display_name='Engine URL',
                           value='http://127.0.0.1:3000')
     TYPE_NAME = 'maltego.algorave.engine'
-    Config = config('Algorave Engine', 'Algorave Engines', True)
+    Config = config('Algorave Engine', 'Algorave Engines', True, icon='engine')
     identity: str = MEF(name='algorave.id', value='local-engine')
     label: str = MEF(name='algorave.label', value='Algorave Engine', matching_rule='loose')
 
@@ -26,7 +29,7 @@ class Song(MaltegoEntity):
     engine_url: str = MEF(matching_rule='loose', name='algorave.engine_url', display_name='Engine URL',
                           value='http://127.0.0.1:3000')
     TYPE_NAME = 'maltego.algorave.song'
-    Config = config('Algorave Song', 'Algorave Songs')
+    Config = config('Algorave Song', 'Algorave Songs', icon='song')
     song_id: str = MEF(matching_rule='loose', name='algorave.song_id', readonly=True)
     song_name: str = MEF(matching_rule='loose', name='algorave.song_name', readonly=True)
     bpm: float = MEF(matching_rule='loose', name='algorave.bpm', readonly=True)
@@ -39,7 +42,7 @@ class Deck(MaltegoEntity):
     engine_url: str = MEF(matching_rule='loose', name='algorave.engine_url', display_name='Engine URL',
                           value='http://127.0.0.1:3000')
     TYPE_NAME = 'maltego.algorave.decks'
-    Config = config('Algorave Deck', 'Algorave Decks')
+    Config = config('Algorave Deck', 'Algorave Decks', icon='deck')
     deck: str = MEF(matching_rule='loose', name='algorave.deck', readonly=True)
     song_id: str = MEF(matching_rule='loose', name='algorave.song_id', readonly=True)
     song_name: str = MEF(matching_rule='loose', name='algorave.song_name', readonly=True)

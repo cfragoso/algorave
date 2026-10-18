@@ -1,11 +1,11 @@
 """Graph navigation and explicit instrument commands for both Strudel decks."""
 import hashlib
 from html import escape
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
 from maltego.server import (MaltegoContext, MaltegoException, OverlayPositions,
-                            OverlayTypes, register_transform)
+                            OverlayTypes, TransformSetting, register_transform)
 from client import AlgoraveClient
 from entities import Engine, Song, Deck, Instrument
 
@@ -71,6 +71,8 @@ def refresh_input(entity, fresh):
     # Preserve the graph entity ID so the SDK updates the original node.
     for name, prop in fresh.get_properties().items():
         entity.set_property(name, prop.value)
+    entity.overlays = fresh.overlays
+    entity.display_information = fresh.display_information
     return entity
 
 
@@ -139,3 +141,67 @@ async def update(input_entity: Instrument, context: MaltegoContext) -> Instrumen
             raise MaltegoException('The instrument changed again after applying. Extract fresh instruments to inspect the current code.')
         context.log.inform(f"Applied component code (job {job['id']}).")
         return refresh_input(input_entity, instrument_entity(api.url, state, track))
+
+
+async def deck_command(entity, action):
+    async with AlgoraveClient(entity.engine_url) as api:
+        await api.state(entity.deck)  # Validate the deck before constructing a write URL.
+        path = f'/api/decks/{entity.deck}/'
+        if action == 'sync':
+            await api.write(path + 'sync', {}, method='POST')
+        else:
+            await api.write(path + 'transport', {'action': action}, method='POST')
+        return refresh_input(entity, deck_entity(api.url, await api.state(entity.deck)))
+
+
+@register_transform(display_name='Play [Algorave]', transform_set=SET)
+async def play(input_entity: Deck) -> Deck:
+    return await deck_command(input_entity, 'play')
+
+
+@register_transform(display_name='Stop [Algorave]', transform_set=SET)
+async def stop(input_entity: Deck) -> Deck:
+    return await deck_command(input_entity, 'stop')
+
+
+@register_transform(display_name='Beat Sync [Algorave]', transform_set=SET,
+                    description='Match this deck to the other deck BPM and beat phase. Enable both decks first.')
+async def beat_sync(input_entity: Deck) -> Deck:
+    return await deck_command(input_entity, 'sync')
+
+
+@register_transform(display_name='Change Volume [Algorave]', transform_set=SET,
+                    description='Set this deck channel fader in the main mixer, from 0 to 100 percent.',
+                    settings=[TransformSetting(name='volume', display_name='Deck volume (0–100)',
+                                               type=TransformSetting.Types.int, optional=False,
+                                               popup=True, default_value=80)])
+async def change_volume(input_entity: Deck, settings: Dict[str, Any]) -> Deck:
+    raw = settings.get('volume')
+    try:
+        if isinstance(raw, bool) or raw is None:
+            raise ValueError()
+        volume = int(str(raw).strip())
+        if not 0 <= volume <= 100:
+            raise ValueError()
+    except (ValueError, TypeError):
+        raise MaltegoException('Enter a whole-number deck volume from 0 to 100.') from None
+    async with AlgoraveClient(input_entity.engine_url) as api:
+        await api.state(input_entity.deck)
+        await api.write('/api/mixer', {'channels': {input_entity.deck: {'volume': volume / 100}}})
+        return refresh_input(input_entity, deck_entity(api.url, await api.state(input_entity.deck)))
+
+
+@register_transform(display_name='Load into Deck [Algorave]', transform_set=SET,
+                    description='Load this song from the engine catalogue into deck A or B. Does not start playback.',
+                    settings=[TransformSetting(name='deck', display_name='Destination deck (A or B)',
+                                               type=TransformSetting.Types.str, optional=False,
+                                               popup=True, default_value='A')])
+async def load_into_deck(input_entity: Song, settings: Dict[str, Any]) -> Deck:
+    deck = str(settings.get('deck', '')).strip().upper()
+    if deck not in ('A', 'B'):
+        raise MaltegoException('Enter destination deck A or B.')
+    if not input_entity.song_id:
+        raise MaltegoException('Song ID is missing. Extract fresh songs from the engine.')
+    async with AlgoraveClient(input_entity.engine_url) as api:
+        await api.write(f'/api/decks/{deck}/songs/load', {'id': input_entity.song_id}, method='POST')
+        return deck_entity(api.url, await api.state(deck))

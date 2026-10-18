@@ -1,0 +1,12 @@
+User-selected icon images, downloaded 2026-10-18. No new license is assigned by this integration; original providers' terms apply.
+
+engine.png
+https://upload.wikimedia.org/wikipedia/commons/2/25/Algorave_logo.png
+
+deck.png
+https://png.pngtree.com/png-vector/20240715/ourlarge/pngtree-the-black-dj-deck-icon-with-an-eye-and-shadow-vector-png-image_7058573.png
+
+song.png
+https://cdn-icons-png.flaticon.com/512/8403/8403974.png
+
+The song entity ID remains maltego.algorave.song (singular), as used by the existing graph and transforms.

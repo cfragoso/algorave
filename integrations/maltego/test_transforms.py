@@ -25,6 +25,7 @@ class TransformTests(unittest.IsolatedAsyncioTestCase):
         self.states = {deck: {'deck': deck, 'song': copy.deepcopy(SONG), 'revision': 2,
                              'playback': deck == 'A', 'mixerValues': [{'mute': 0, 'solo': 0}] * 2}
                        for deck in ('A', 'B')}
+        self.master = {'channels': {'A': {'volume': .8}, 'B': {'volume': .8}}}
         self.writes = []
         self.polls = 0
         self.job_status = 'applied'
@@ -39,12 +40,26 @@ class TransformTests(unittest.IsolatedAsyncioTestCase):
     def respond(self, request):
         self.assertEqual(request.headers['Authorization'], 'Bearer test-secret')
         path = request.url.path
-        if request.method == 'PATCH':
+        if request.method in ('PATCH', 'POST'):
             data = json.loads(request.content)
             self.writes.append((path, data))
+            if path == '/api/mixer':
+                if self.job_status == 'applied':
+                    for deck, channel in data['channels'].items():
+                        self.master['channels'][deck].update(channel)
+                return httpx.Response(202, json={'id': 'job-1', 'status': 'pending'})
             state = self.states[path.split('/')[3]]
             if self.job_status == 'applied':
-                if path.endswith('/mixer'):
+                if path.endswith('/transport'):
+                    state['playback'] = data['action'] == 'play'
+                elif path.endswith('/sync'):
+                    other = self.states['B' if state['deck'] == 'A' else 'A']
+                    state['song']['bpm'] = other['song']['bpm']
+                    state['revision'] += 1
+                elif path.endswith('/songs/load'):
+                    state['song'] = copy.deepcopy(SONG)
+                    state['revision'] += 1
+                elif path.endswith('/mixer'):
                     state['mixerValues'] = copy.deepcopy(state['mixerValues'])
                     state['mixerValues'][data['column'] - 1]['mute'] = data['value']
                 else:
@@ -54,6 +69,8 @@ class TransformTests(unittest.IsolatedAsyncioTestCase):
         if path.startswith('/api/jobs/'):
             self.polls += 1
             return httpx.Response(200, json={'id': 'job-1', 'status': self.job_status, 'error': 'Compile failed'})
+        if path == '/api/mixer':
+            return httpx.Response(200, json=self.master)
         if path == '/api/songs':
             return httpx.Response(200, json=[SONG])
         if path == '/api/session/state':
@@ -70,6 +87,60 @@ class TransformTests(unittest.IsolatedAsyncioTestCase):
             if cls is Instrument:
                 self.assertFalse(fields['algorave.code']['readonly'])
                 self.assertIn('algorave.source_hash', fields)
+
+    async def test_play_stop_refresh_deck_properties_and_status_field(self):
+        deck = tf.deck_entity(URL, self.states['B'])
+        identity = deck.maltego_entity_id
+        await tf.play(deck)
+        self.assertTrue(deck.playing)
+        self.assertEqual(deck.colour, 'red')
+        self.assertIn('red', str(deck.to_v3_run_entity().model_dump()['display_information']))
+        await tf.stop(deck)
+        self.assertFalse(deck.playing)
+        self.assertEqual(deck.colour, 'green')
+        self.assertEqual(identity, deck.maltego_entity_id)
+        self.assertEqual(self.writes, [('/api/decks/B/transport', {'action': 'play'}),
+                                       ('/api/decks/B/transport', {'action': 'stop'})])
+
+    async def test_sync_targets_selected_deck(self):
+        self.states['B']['song']['bpm'] = 138
+        deck = await tf.beat_sync(self.deck)
+        self.assertEqual(deck.bpm, 138)
+        self.assertEqual(self.writes, [('/api/decks/A/sync', {})])
+
+    async def test_volume_scales_without_changing_other_deck(self):
+        for value in (0, 37, 100):
+            await tf.change_volume(self.deck, {'volume': value})
+            self.assertEqual(self.master['channels']['A']['volume'], value / 100)
+            self.assertEqual(self.master['channels']['B']['volume'], .8)
+        self.assertEqual(self.writes[1], ('/api/mixer', {'channels': {'A': {'volume': .37}}}))
+
+    async def test_settings_validation_precedes_writes(self):
+        for value in (-1, 101, None, True, 'nan', 1.5, ''):
+            with self.assertRaises(MaltegoException):
+                await tf.change_volume(self.deck, {'volume': value})
+        for value in ('C', '', None):
+            with self.assertRaises(MaltegoException):
+                await tf.load_into_deck(tf.song_entity(URL, SONG), {'deck': value})
+        self.assertEqual(self.writes, [])
+
+    async def test_song_load_returns_destination_deck(self):
+        self.states['B']['song'] = None
+        result = await tf.load_into_deck(tf.song_entity(URL, SONG), {'deck': ' b '})
+        self.assertEqual(result.deck, 'B')
+        self.assertEqual(result.song_id, SONG['id'])
+        self.assertFalse(result.playing)
+        self.assertEqual(self.writes, [('/api/decks/B/songs/load', {'id': SONG['id']})])
+
+    async def test_deck_command_failed_job_leaves_graph_unchanged(self):
+        self.job_status = 'failed'
+        with self.assertRaises(MaltegoException):
+            await tf.stop(self.deck)
+        self.assertTrue(self.deck.playing)
+
+    async def test_icon_resources(self):
+        for cls, name in ((Engine, 'engine'), (Song, 'song'), (Deck, 'deck')):
+            self.assertEqual(cls.to_v3_entity_definition(cls).icon_resource, 'algorave-' + name)
 
     async def test_catalogue_and_song(self):
         songs = await tf.to_songs(self.engine)
