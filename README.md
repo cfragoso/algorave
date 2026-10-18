@@ -63,6 +63,13 @@ The lighting bridge is a separate Python process. Follow [lights/README.md](ligh
 for a dry run, USB setup and network deployment. On macOS the USB endpoint runs
 natively; its Dockerfile is intended for native Linux device passthrough.
 
+## Maltego integration
+
+Navigate the engine, songs, decks and instruments from a Maltego graph, mute or
+unmute channels, and apply edited Strudel components through the app API.
+See [integrations/maltego/README.md](integrations/maltego/README.md) for installation,
+the local seed URL and the seven available transforms.
+
 ## Current status
 
 - Song playback, all 48 MIDI assignments and first-column mute/LED behavior were checked on the user's setup.
