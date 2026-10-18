@@ -1,10 +1,24 @@
 import {EditorView, basicSetup} from 'codemirror';
+import {Decoration} from '@codemirror/view';
+import {StateEffect, StateField} from '@codemirror/state';
+import {validRanges} from './activity.js';
 import {javascript} from '@codemirror/lang-javascript';
 import {HighlightStyle, syntaxHighlighting} from '@codemirror/language';
 import {tags} from '@lezer/highlight';
 
 export function createSongEditor({apply, report}) {
   let current, baseRevision, dirty = false, submitted, restoring = false;
+  let highlightKey = '';
+  const setHighlights = StateEffect.define();
+  const highlightField = StateField.define({
+    create: () => Decoration.none,
+    update(value, transaction) {
+      if (transaction.docChanged) return Decoration.none;
+      for (const effect of transaction.effects) if (effect.is(setHighlights)) return effect.value;
+      return value;
+    },
+    provide: field => EditorView.decorations.from(field),
+  });
   const note = document.getElementById('editor-status');
   const updateNote = () => {
     note.textContent = dirty
@@ -14,7 +28,7 @@ export function createSongEditor({apply, report}) {
   };
   const view = new EditorView({
     parent: document.getElementById('song-editor'),
-    extensions: [basicSetup, javascript(), EditorView.lineWrapping,
+    extensions: [basicSetup, javascript(), EditorView.lineWrapping, highlightField,
       syntaxHighlighting(HighlightStyle.define([
         {tag: tags.keyword, color: '#c792ea'},
         {tag: tags.variableName, color: '#d7e4cf'},
@@ -27,7 +41,9 @@ export function createSongEditor({apply, report}) {
       ])),
       EditorView.contentAttributes.of({'aria-label': 'Full Strudel song', spellcheck: 'false'}),
       EditorView.updateListener.of(update => {
-        if (!update.docChanged || restoring) return;
+        if (!update.docChanged) return;
+        highlightKey = '';
+        if (restoring) return;
         dirty = view.state.doc.toString() !== current?.song.code;
         sessionStorage.setItem('algorave-code-draft', JSON.stringify({code: view.state.doc.toString(), revision: baseRevision}));
         updateNote();
@@ -70,6 +86,18 @@ export function createSongEditor({apply, report}) {
     link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   return {
+    highlight(frame = {ranges: [], labels: []}) {
+      const matching = !dirty && current && view.state.doc.toString() === current.song.code;
+      const length = view.state.doc.length;
+      const ranges = matching ? validRanges(frame.ranges, length) : [];
+      const labels = matching ? validRanges(frame.labels, length) : [];
+      const key = JSON.stringify([ranges, labels]);
+      if (key === highlightKey) return;
+      highlightKey = key;
+      const marks = ranges.map(range => Decoration.mark({class: 'cm-playing-token'}).range(range.start, range.end))
+        .concat(labels.map(range => Decoration.mark({class: 'cm-playing-part'}).range(range.start, range.end)));
+      view.dispatch({effects: setHighlights.of(Decoration.set(marks, true))});
+    },
     sync(next) {
       const initial = !current;
       current = next;
@@ -89,10 +117,12 @@ export function createSongEditor({apply, report}) {
         sessionStorage.removeItem('algorave-code-draft');
       }
       updateNote();
+      if (!next.playback) this.highlight();
     },
     disconnected() {
       document.getElementById('evaluate').disabled = true;
       note.textContent = 'Disconnected · your draft is kept in this tab';
+      this.highlight();
     },
   };
 }

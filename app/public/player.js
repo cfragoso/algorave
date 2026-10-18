@@ -1,13 +1,15 @@
-import {initStrudel, getAudioContext} from '@strudel/web/web.mjs';
+import {initStrudel, getAudioContext, webaudioOutput} from '@strudel/web/web.mjs';
 import {createMixer} from './mixer.js';
 import {sessionControls} from './session-ui.js';
 import {compileSong} from './compile.js';
 import {createSongEditor} from './editor.js';
+import {createActivityClock} from './activity.js';
 
 const $ = id => document.getElementById(id);
 const status = message => { $('status').textContent = message; };
 let socket, engine, mixer, active = false, compiled, state, desiredSong;
 let applyQueue = Promise.resolve();
+const activity = createActivityClock();
 const api = async (url, options = {}) => {
   const response = await fetch(url, {headers: {'Content-Type': 'application/json', ...options.headers}, ...options});
   const result = await response.json();
@@ -23,6 +25,23 @@ const editor = createSongEditor({
   apply: (code, revision) => submit('/api/code', 'POST', {code, revision}),
   report: showError,
 });
+function currentActivityFrame() {
+  return engine?.scheduler.started && desiredSong && desiredSong.code === state?.song.code
+    ? activity.frame(getAudioContext().currentTime, desiredSong.code) : {ranges: [], labels: []};
+}
+function animateActivity() {
+  if (active) {
+    editor.highlight(currentActivityFrame());
+  }
+  requestAnimationFrame(animateActivity);
+}
+requestAnimationFrame(animateActivity);
+// Remote feedback must not depend on this tab's paint/visibility cycle.
+setInterval(() => {
+  if (active && socket?.readyState === WebSocket.OPEN && state) {
+    send({type: 'activity', revision: state.revision, ...currentActivityFrame()});
+  }
+}, 67);
 
 function renderControls(next) {
   const controls = sessionControls({active, connected: socket?.readyState === WebSocket.OPEN, ...next});
@@ -66,6 +85,7 @@ async function applySong(song, connection) {
   const {pattern: candidate, bpm} = await compileSong(song, mixer);
   if (!active || socket !== connection || connection.readyState !== WebSocket.OPEN) throw new Error('Audio device was released or disconnected');
   const wasPlaying = engine.scheduler.started;
+  activity.clear();
   engine.setCps(bpm / 240);
   await engine.setPattern(candidate, wasPlaying);
   compiled = candidate;
@@ -80,6 +100,15 @@ async function initEngine() {
   if (engine) return;
   engine = await initStrudel({
     audioContext: context,
+    // The transpiler supplies positions for double-quoted mini notation.
+    // Parsing literal single-quoted sound/bank names again creates offset-0
+    // locations and would incorrectly highlight the beginning of the score.
+    miniAllStrings: false,
+    defaultOutput: (hap, deadline, duration, cps, time) => {
+      activity.schedule(hap, time, duration);
+      return webaudioOutput(hap, deadline, duration, cps, time);
+    },
+    onToggle: playing => { if (!playing) { activity.clear(); editor.highlight(); } },
     onError: error => status('Audio scheduler: ' + error.message),
     prebake: async () => {
       const base = 'https://raw.githubusercontent.com/geikha/tidal-drum-machines/main/';
@@ -129,6 +158,7 @@ async function connect() {
     lastMessage = Date.now();
     const message = JSON.parse(data);
     if (message.type === 'state') render(message);
+    if (message.type === 'activity' && !active && message.revision === state?.revision) editor.highlight(message);
     if (message.type === 'error') { active = false; if (state) render(state); showError(new Error(message.error)); }
     if (message.type === 'sync' || message.type === 'apply') {
       applyQueue = applyQueue.catch(() => {}).then(async () => {

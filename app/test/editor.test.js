@@ -69,3 +69,18 @@ test('unlabeled patterns and top-level await run once', async () => {
   assert.equal(result.pattern.queryArc(0, 1).length, 4);
   delete globalThis.editorTestSetup;
 });
+
+test('scheduled events retain original token and part locations through compilation and shared variables', async () => {
+  const code = `// Source positions must match this editor text\nsetcpm(122/4);\nconst phrase = note("e2 g2");\nkick$: s("bd sd");\nbass$: phrase.s('triangle');`;
+  const song = replaceSource(await preset('live-set'), code);
+  const {pattern} = await compileSong(song, {strip: (_column, pattern) => pattern});
+  const events = pattern.queryArc(0, 1);
+  for (const event of events) {
+    assert.equal(event.context.algoraveSource, code);
+    assert.ok(event.context.locations.length);
+    const tokens = event.context.locations.map(range => code.slice(range.start, range.end));
+    assert.ok(tokens.some(token => ['bd', 'sd', 'e2', 'g2'].includes(token)), tokens.join(','));
+    const label = event.context.algoraveLabel;
+    assert.equal(code.slice(label.start, label.end), event.context.algoraveTrack + '$');
+  }
+});

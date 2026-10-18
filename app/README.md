@@ -61,8 +61,8 @@ Shared variables, functions, double-quoted mini notation, top-level await,
 `samples(...)`, `all(...)` and `each(...)` are supported. Use single quotes for
 ordinary JS text, as in strudel.cc. The app loads the drum/vocal maps and synths;
 extra samples require your own loading code. This is a full-score editor, not an
-iframe of strudel.cc: its sidebar tools, inline sliders, scopes and animated
-pattern highlighting are not implemented. Tempo is staged with the new pattern
+iframe of strudel.cc: its sidebar tools, inline sliders and scopes are not
+implemented. Tempo is staged with the new pattern
 so an invalid update does not change the running tempo.
 
 API song and track edits update this same score. Unapplied typing is kept as a
@@ -71,6 +71,21 @@ rather than replacing the remote edit. **Download code** preserves your draft;
 **Use current song · discard draft** replaces it with the current live score.
 Drafts survive reload in this tab's session storage, but are not saved to GitHub.
 Downloading saves musical code; this app's MIDI mixer setup is separate.
+
+### Playback highlighting
+
+During playback, **amber** marks show active mini-notation tokens, and **green**
+marks show the corresponding named instrument labels. Use double quotes or
+backticks for mini notation, as in strudel.cc. Shared variables also highlight
+where their notes/rhythms are defined. Highlighting follows scheduled pattern
+events and their durations; it is not an audio-level meter or a guarantee that a
+sample loaded successfully. Muted/zero-gain events do not start new highlights.
+
+The audio tab uses scheduled AudioContext timestamps. Remote controller tabs
+receive activity frames over WebSocket at up to 15 Hz, with network/display
+delay and possible browser background throttling. Stops, releases and disconnects clear the marks. An unapplied or conflicting
+draft suppresses marks until its code matches the confirmed score again, so
+live positions are never deliberately shown over different draft text.
 
 **Individual track controls** remains available in the expandable panel below.
 Load **Build it live**. Only channel 1 is initially in the set. Tick **In the set**

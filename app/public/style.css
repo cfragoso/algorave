@@ -10,6 +10,10 @@ main {margin:25px 0} #tracks {display:grid;grid-template-columns:repeat(2,minmax
 .full-editor {border:1px solid #303c2b;border-radius:8px;padding:18px;margin-bottom:24px}
 .full-editor p {color:#b9c6b2} #song-editor {border:1px solid #33412d;border-radius:4px;overflow:hidden}
 #evaluate {background:#c6ef83;color:#17210f} summary {cursor:pointer;color:#c6ef83} .full-editor .toolbar {margin:16px 0}
+.cm-playing-token {background:#f4c85a !important;color:#14200c !important;border-radius:2px;box-shadow:0 0 0 1px #f4c85a}
+.cm-playing-token * {color:#14200c !important}
+.cm-playing-part {background:#466630 !important;color:#eaffd7 !important;border-radius:2px;text-decoration:underline;text-decoration-color:#c6ef83}
+.cm-playing-part * {color:#eaffd7 !important}
 article {background:#181e16;border:1px solid #303c2b;border-radius:8px;padding:18px} h2 {font-size:17px;margin:0 0 14px;text-transform:capitalize}
 .column {color:#b3d78a;margin-right:12px;font-variant-numeric:tabular-nums} textarea {width:100%;height:210px;resize:vertical;background:#10150e;color:#d7e4cf;border:1px solid #33412d;border-radius:4px;padding:12px;font:13px/1.6 ui-monospace,monospace;tab-size:2}
 .track-controls {display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px} .track-controls input[type=text] {width:150px}

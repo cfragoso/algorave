@@ -1,9 +1,10 @@
 import {transpiler} from '@strudel/transpiler';
-import {captureSource, trackId, trackIds} from './source.js';
+import {captureOutput, partsIn, trackId, trackIds} from './source.js';
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 export async function compileSong(song, mixer) {
   const captured = [], allTransforms = [], eachTransforms = [];
+  const parts = partsIn(song.code);
   let bpm = song.bpm;
   const setTempo = value => {
     bpm = Number(value?.__value ?? value);
@@ -12,11 +13,13 @@ export async function compileSong(song, mixer) {
   };
   const capture = (label, pattern) => {
     if (!pattern?.queryArc) throw new Error(label + ' must return a Strudel pattern');
-    captured.push({label, pattern});
+    const part = parts.find(part => part.label === label && !part.captured);
+    if (part) part.captured = true;
+    captured.push({label, pattern, part});
     return pattern;
   };
-  const source = captureSource(song.code);
-  const output = transpiler(source, {emitMiniLocations: false, emitWidgets: false, addReturn: false}).output;
+  const transpiled = transpiler(song.code + '\n;silence;', {emitMiniLocations: true, emitWidgets: false, addReturn: false});
+  const output = captureOutput(song.code, transpiled.output);
   // Code is evaluated in a function scope. Musical tempo and pattern changes are
   // staged here, so syntax/query failures do not alter the running scheduler.
   const evaluate = new AsyncFunction('__capture', 'setcpm', 'setCpm', 'setcps', 'all', 'each', 'liveStrip', 'strip',
@@ -24,10 +27,13 @@ export async function compileSong(song, mixer) {
   await evaluate(capture, value => setTempo(Number(value) * 4), value => setTempo(Number(value) * 4),
     value => setTempo(Number(value) * 240), transform => allTransforms.push(transform),
     transform => eachTransforms.push(transform), (_column, pattern) => pattern, (_column, pattern) => pattern);
-  const patterns = captured.map(({label, pattern}) => {
+  const patterns = captured.map(({label, pattern, part}) => {
     const index = trackIds.indexOf(trackId(label));
     for (const transform of eachTransforms) pattern = transform(pattern);
-    return index < 0 ? pattern : mixer.strip(index + 1, pattern);
+    pattern = index < 0 ? pattern : mixer.strip(index + 1, pattern);
+    return pattern.withContext(context => ({...context, algoraveSource: song.code,
+      algoraveTrack: trackId(label),
+      algoraveLabel: part ? {start: part.start, end: part.start + part.label.length} : null}));
   });
   let pattern = patterns.length ? globalThis.stack(...patterns) : globalThis.silence;
   for (const transform of allTransforms) pattern = transform(pattern);

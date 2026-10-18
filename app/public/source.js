@@ -52,19 +52,23 @@ export function rewriteTrack(song, track) {
   return song;
 }
 
-// Capture top-level named patterns before the Strudel transpiler transforms labels.
-export function captureSource(code) {
-  let source = code;
+// Capture AFTER transpilation: m() then retains original editor offsets.
+export function captureOutput(code, output) {
+  const original = parse(code, {ecmaVersion: 2022, allowAwaitOutsideFunction: true}).body;
+  const generated = parse(output, {ecmaVersion: 2022, allowAwaitOutsideFunction: true}).body;
   const parts = partsIn(code);
-  if (!parts.length) {
-    const last = parse(code, {ecmaVersion: 2022, allowAwaitOutsideFunction: true}).body.at(-1);
-    if (last?.type === 'ExpressionStatement') {
-      source = source.slice(0, last.start) + `__capture('$', (${code.slice(last.expression.start, last.expression.end)}));` + source.slice(last.end);
+  const edits = [];
+  original.forEach((node, index) => {
+    const target = generated[index];
+    if (node.type === 'LabeledStatement' && node.body.type === 'ExpressionStatement') {
+      const expression = target.expression.callee.object;
+      edits.push({start: target.start, end: target.end,
+        text: `__capture(${JSON.stringify(node.label.name)}, (${output.slice(expression.start, expression.end)}));`});
+    } else if (!parts.length && index === original.length - 1 && node.type === 'ExpressionStatement') {
+      edits.push({start: target.start, end: target.end,
+        text: `__capture('$', (${output.slice(target.expression.start, target.expression.end)}));`});
     }
-  }
-  for (const part of parts.reverse()) {
-    source = source.slice(0, part.start) + `__capture('${part.label}', (${part.expression}));` + source.slice(part.end);
-  }
-  // Ensure definitions/comments alone form a valid, silent program.
-  return source + '\n;silence;';
+  });
+  for (const edit of edits.reverse()) output = output.slice(0, edit.start) + edit.text + output.slice(edit.end);
+  return output;
 }

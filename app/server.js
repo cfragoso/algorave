@@ -6,6 +6,7 @@ import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { patchTrack, validateSong } from './model.js';
 import {withSource, replaceSource} from './public/source.js';
+import {validRanges} from './public/activity.js';
 
 const appDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(appDir);
@@ -159,6 +160,10 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
             revision++;
           }
           finish(message.ok === true ? 'applied' : 'failed', message.error || (message.ok === true ? undefined : 'Player rejected update'));
+        } else if (message.type === 'activity' && client === player && playback && message.revision === revision) {
+          const frame = {type: 'activity', revision,
+            ranges: validRanges(message.ranges, song.code.length), labels: validRanges(message.labels, song.code.length)};
+          ws.clients.forEach(observer => { if (observer !== player) send(observer, frame); });
         } else if (message.type === 'playback' && client === player) {
           playback = message.playing === true;
           broadcast();

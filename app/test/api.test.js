@@ -64,6 +64,10 @@ test('edits commit only after the designated player accepts; errors retain the p
   const transferred = await observer.wait('sync');
   assert.equal(transferred.revision, 1);
   assert.equal(transferred.song.tracks[4].sound, 'square');
+  observer.send({type: 'playback', playing: true});
+  observer.send({type: 'activity', revision: 1, ranges: [{start: 0, end: 2}, {start: -1, end: 1}], labels: []});
+  const activity = await player.wait('activity');
+  assert.deepEqual(activity.ranges, [{start: 0, end: 2}]);
 });
 
 test('authentication, browser session cookies and origin checks', async t => {
