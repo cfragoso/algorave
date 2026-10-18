@@ -1,0 +1,66 @@
+{
+  "id": "maltegians-anthem",
+  "name": "Maltegians Anthem",
+  "bpm": 120,
+  "key": "D minor",
+  "bars": 128,
+  "tracks": [
+    {
+      "id": "kick",
+      "column": 1,
+      "code": "anthem(kick, kick, kick, silence, kickLift, kick, kick)",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "clap",
+      "column": 2,
+      "code": "anthem(silence, clap, clapReply, silence,\n  s(\"<sd*2 sd*2 sd*4 sd*8>/2\").bank('tr909').gain(0.055), clapReply, clap)",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "closed_hats",
+      "column": 3,
+      "code": "anthem(hats, hats, hats, silence, hats, hatsFull, hats)",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "percussion",
+      "column": 4,
+      "code": "anthem(silence, percussion, stack(percussion, wood), rim,\n  rim, stack(percussion, wood), openHat)",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "bass",
+      "column": 5,
+      "code": "anthem(silence, bass, stack(bass, bassReply), silence,\n  bass.gain(0.10), stack(bass, bassReply), bass)",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "lead",
+      "column": 6,
+      "code": "anthem(silence, silence, melody, response.gain(0.03), call,\n  melody, silence)",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "chords",
+      "column": 7,
+      "code": "anthem(pad.gain(0.018), keys, keys, pad, pad,\n  stack(keys, pad.gain(0.013)), keys.gain(0.02))",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "vocals",
+      "column": 8,
+      "code": "anthem(silence, silence, voice, echoVoice, silence,\n  stack(voice, echoVoice), silence)",
+      "sound": null,
+      "enabled": true
+    }
+  ],
+  "code": "// MALTEGIANS ANTHEM · original deep house · 120 BPM · D minor\n// 128 bars / about 4:16. Eight parts, one shared arrangement.\n// Edit the roots and chord voicings together to change the harmony.\nsetcpm(120 / 4);\n\n// Harbour 16 | pocket 16 | gathering 24 | dusk 16 | lift 8\n// Anthem 32 | home 16. The complete journey loops.\nfunction anthem(harbour, pocket, gathering, dusk, lift, chorus, home) {\n  return arrange([16, harbour], [16, pocket], [24, gathering], [16, dusk],\n    [8, lift], [32, chorus], [16, home]);\n}\nconst roots = \"<d2 d2 bb1 bb1 f2 f2 c2 c2>\";\nconst voicings = \"<[d3,f3,a3,c4,e4] [d3,f3,a3,c4,e4] [bb2,d3,f3,a3,c4] [bb2,d3,f3,a3,c4] [f3,a3,c4,e4,g4] [f3,a3,c4,e4,g4] [c3,e3,g3,bb3,d4] [c3,e3,g3,bb3,d4]>\";\n\n// 1 · Warm, steady kick. The dusk section makes room for the harmony.\nconst kick = s(\"bd*4\").bank('tr909').gain(0.46);\nconst kickLift = arrange([6, silence], [2, kick.gain(0.30)]);\nkick$: anthem(kick, kick, kick, silence, kickLift, kick, kick);\n\n// 2 · Soft clap with a quiet snare answering every fourth bar.\nconst clap = s(\"~ cp ~ cp\").bank('tr909').gain(0.17);\nconst clapReply = stack(clap,\n  s(\"<~ ~ ~ [~ ~ ~ sd]>\").bank('tr909').gain(0.045));\nclap$: anthem(silence, clap, clapReply, silence,\n  s(\"<sd*2 sd*2 sd*4 sd*8>/2\").bank('tr909').gain(0.055), clapReply, clap);\n\n// 3 · The shuffle is subtle: keep the first and third hats louder.\nconst hats = s(\"hh*8\").bank('tr909').gain(\"0.065 0.03\").swingBy(0.16, 4);\nconst hatsFull = s(\"hh*16\").bank('tr909')\n  .gain(\"0.065 0.018 0.038 0.025\").swingBy(0.12, 8);\nclosed_hats$: anthem(hats, hats, hats, silence, hats, hatsFull, hats);\n\n// 4 · Offbeat open hats, rim clicks and a small tuned-percussion answer.\nconst openHat = s(\"[~ oh]*4\").bank('tr909').gain(0.055).cut(4);\nconst rim = s(\"~ rim ~ ~ rim ~ ~ rim\").bank('tr909')\n  .gain(0.045).swingBy(0.14, 4);\nconst wood = note(\"~ a4 ~ ~ c5 ~ a4 ~\").s('sine')\n  .attack(0.001).decay(0.045).sustain(0).release(0.025).gain(0.025);\nconst percussion = stack(openHat, rim);\npercussion$: anthem(silence, percussion, stack(percussion, wood), rim,\n  rim, stack(percussion, wood), openHat);\n\n// 5 · Syncopated Dm9–Bbmaj9–Fmaj9–C9 bass, with a higher reply.\nconst bass = note(roots).struct(\"~ x ~ x ~ ~ x ~\").s('triangle')\n  .attack(0.006).decay(0.19).sustain(0.08).release(0.07).gain(0.19);\nconst bassReply = note(\"<a2 a2 f2 f2 c3 c3 g2 g2>\")\n  .struct(\"~ ~ ~ ~ ~ ~ ~ x\").s('sine')\n  .attack(0.004).decay(0.12).sustain(0).release(0.05).gain(0.045);\nbass$: anthem(silence, bass, stack(bass, bassReply), silence,\n  bass.gain(0.10), stack(bass, bassReply), bass);\n\n// 6 · An anthem that leaves space: a call, then a gentler response.\nconst call = note(\"a4 ~ c5 d5 ~ c5 ~ f4\").slow(2).s('triangle')\n  .attack(0.006).decay(0.24).sustain(0).release(0.20)\n  .delay(0.18).delaytime(0.375).delayfeedback(0.26).gain(0.055);\nconst response = note(\"~ g4 ~ a4 c5 ~ a4 ~\").slow(2).s('sine')\n  .attack(0.012).decay(0.30).sustain(0).release(0.22).gain(0.045);\nconst melody = arrange([4, call], [4, response]);\nlead$: anthem(silence, silence, melody, response.gain(0.03), call,\n  melody, silence);\n\n// 7 · Soft electric-key-like stabs; sustained ninths during the breakdown.\nconst chords = note(voicings);\nconst keys = chords.struct(\"~ x ~ ~ x ~ x ~\").s('triangle')\n  .attack(0.009).decay(0.34).sustain(0).release(0.26).gain(0.032);\nconst pad = chords.s('sine').attack(0.45).decay(0.6)\n  .sustain(0.40).release(1.0).room(0.35).gain(0.025);\nchords$: anthem(pad.gain(0.018), keys, keys, pad, pad,\n  stack(keys, pad.gain(0.013)), keys.gain(0.02));\n\n// 8 · Chopped, pitched 'yeah' texture from the existing nightvox map.\n// Replace this sample with your own spoken hook when you want real words.\nconst voice = s(\"~ nightvox:4 ~ ~\").slow(4).speed(0.84)\n  .begin(0.04).end(0.48).hpf(420).room(0.3).gain(0.065);\nconst echoVoice = s(\"~ ~ ~ nightvox:4\").slow(8).speed(1.0)\n  .begin(0.10).end(0.36).delay(0.22).delaytime(0.375)\n  .delayfeedback(0.30).gain(0.045);\nvocals$: anthem(silence, silence, voice, echoVoice, silence,\n  stack(voice, echoVoice), silence);\n\n// LIVE: bring bass in after the intro; add melody after the groove settles.\n// Lift the chord reverb in dusk. Restore kick + bass together for the anthem.\n"
+}

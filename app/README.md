@@ -301,7 +301,9 @@ out after changes. The API reports applied patterns, not a guarantee of audible 
 
 ## Song files
 
-The app loads `songs/*/session.json` at server startup. Each file contains a BPM and
+The app reads `songs/*/session.json` at startup and refreshes the catalogue when
+the song browser is fetched or a preset is loaded. Refresh the browser after
+adding a song; subsequent additions do not require a server restart. Each file contains a BPM and
 eight tracks with fixed IDs/columns, JavaScript pattern expressions, an optional
 sound override and an enabled flag. The existing `song.js` and `score.js` remain
 standalone strudel.cc versions. These JSON files are an additional editable format.

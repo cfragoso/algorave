@@ -44,9 +44,13 @@ test('API track edits rewrite the shared score while preserving setup and other 
 });
 
 test('existing presets compile and failed code/tempo is rejected before playback changes', async () => {
-  for (const id of ['live-set', 'night-bus', 'south-african-awakening', 'german-renaissance']) {
+  for (const id of ['live-set', 'night-bus', 'south-african-awakening', 'german-renaissance', 'maltegians-anthem']) {
     const result = await compileSong(await preset(id), {strip: (_column, pattern) => pattern});
     assert.ok(result.pattern.queryArc(0, 1).length);
+    if(id==='maltegians-anthem'){
+      assert.equal(result.bpm,120);const roles=new Set();for(let bar=0;bar<128;bar++){const haps=result.pattern.queryArc(bar,bar+1);assert.ok(haps.length);haps.forEach(h=>roles.add(h.context.algoraveTrack));}
+      assert.equal(roles.size,8);
+    }
     if(id==='german-renaissance'){
       assert.equal(result.bpm,140);for(let bar=0;bar<144;bar++)assert.ok(result.pattern.queryArc(bar,bar+1).length);
       assert.equal(result.pattern.queryArc(32,33).filter(h=>h.context.algoraveTrack==='lead').length,16);

@@ -25,14 +25,19 @@ const equal = (a, b) => {
 
 export async function createControlServer({token = '', timeoutMs = 10000, initialSong, initialRevision = 0, initialSession, setupDir = process.env.ALGORAVE_DATA_DIR || path.join(appDir,'data','setups')} = {}) {
   const songs = new Map();
+  const refreshSongs = async () => {
+    const updated=new Map();
   for (const name of await readdir(path.join(root, 'songs'))) {
     try {
       const song = validateSong(JSON.parse(await readFile(path.join(root, 'songs', name, 'session.json'), 'utf8')));
-      songs.set(song.id, withSource(song));
+      updated.set(song.id, withSource(song));
     } catch (error) {
       if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error;
     }
   }
+    songs.clear();for(const [id,song] of updated)songs.set(id,song);
+  };
+  await refreshSongs();
   const decks = Object.fromEntries(['A','B'].map(id => [id, {
     song: id === 'A' && initialSong ? withSource(validateSong(initialSong)) : structuredClone(songs.get('live-set')),
     revision: id === 'A' ? initialRevision : 0, player: null, pending: null, playback: false, telemetry: null, telemetryAt: 0, stripValues:defaultStrip(),
@@ -131,7 +136,7 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
         const setupMatch=url.pathname.match(/^\/api\/setups\/([0-9a-f-]{36})(\/load)?$/);
         if(setupMatch){const setup=await setups.get(setupMatch[1]);if(req.method==='GET'&&!setupMatch[2])return json(res,200,setup);if(req.method==='POST'&&setupMatch[2]){const result=loadSetup(setup);return json(res,result.status,result.body);}}
         if(req.method==='GET' && url.pathname==='/api/session/state')return json(res,200,session());
-        if(req.method==='GET' && url.pathname==='/api/songs')return json(res,200,[...songs.values()]);
+        if(req.method==='GET' && url.pathname==='/api/songs'){await refreshSongs();return json(res,200,[...songs.values()]);}
         if(req.method==='GET' && url.pathname.startsWith('/api/jobs/')){
           const job=jobs.get(url.pathname.slice(10));return json(res,job?200:404,job||{error:'Unknown job'});
         }
@@ -161,7 +166,7 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
           if(input.revision!==d.revision)return json(res,409,{error:'Song changed since this draft started. Download your draft, then use current song before applying again.'});
           candidate=validateSong(replaceSource(d.song,input.code));
         } else if(req.method==='POST' && route==='/api/songs/load'){
-          const input=await body(req);if(!songs.has(input.id))return json(res,404,{error:'Unknown song'});
+          const input=await body(req);await refreshSongs();if(!songs.has(input.id))return json(res,404,{error:'Unknown song'});
           candidate=structuredClone(songs.get(input.id));
         } else if(req.method==='PATCH' && route.startsWith('/api/tracks/'))candidate=patchTrack(d.song,decodeURIComponent(route.slice(12)),await body(req));
         else if(req.method==='POST' && route==='/api/transport'){
