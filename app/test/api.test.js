@@ -57,6 +57,13 @@ test('edits commit only after the designated player accepts; errors retain the p
   assert.equal((await request('/api/state')).body.song.tracks[4].code, state.song.tracks[4].code);
   assert.equal((await request('/api/tracks/bass', 'PATCH', {column: 1})).status, 400);
   observer.send({type: 'claim'}); assert.match((await observer.wait('error')).error, /Another/);
+  player.send({type: 'release'});
+  for (let i = 0; i < 50 && (await request('/api/state')).body.playerConnected; i++) await new Promise(r => setTimeout(r, 5));
+  assert.equal((await request('/api/state')).body.playerConnected, false);
+  observer.send({type: 'claim'});
+  const transferred = await observer.wait('sync');
+  assert.equal(transferred.revision, 1);
+  assert.equal(transferred.song.tracks[4].sound, 'square');
 });
 
 test('authentication, browser session cookies and origin checks', async t => {

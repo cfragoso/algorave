@@ -12,9 +12,11 @@
   <section class="toolbar" aria-label="Session controls">
     <form id="login"><input id="token" type="password" placeholder="API token (if configured)" aria-label="API token"><button>Connect</button></form>
     <button id="enable" disabled>Enable audio device</button><button id="play" disabled>Play</button><button id="stop" disabled>Stop</button>
+    <button id="release" hidden>Release audio device</button>
     <button id="midi" disabled>Connect Launch Control XL</button><button id="reset" disabled>Reset mix</button>
     <select id="songs" aria-label="Song"></select><button id="load" disabled>Load song</button>
   </section>
+  <p id="device-status" aria-live="polite">Connecting to the control server…</p>
   <p id="status" role="status">Connecting…</p>
   <main id="tracks"></main>
   <footer>Audio plays on the enabled device. Other browsers control its tracks through the API.

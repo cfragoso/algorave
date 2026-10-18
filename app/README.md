@@ -22,6 +22,14 @@ audio works without MIDI. Retain the hardware template used during mapping.
 On restart, `npm start` is enough unless dependencies or browser code changed.
 Browser code changes require `npm run build` and a page reload.
 
+Only one browser tab owns audio at a time. The message below the buttons shows
+whether this tab is the audio player or a remote controller. If Chrome shows
+**Audio active elsewhere**, close the player in the other browser (including
+the in-app browser panel), or click **Release audio device** in that player.
+Then click **Enable audio device** in Chrome. Play, Stop, MIDI and Reset mix
+are available only in the audio player; song and track edits also work remotely.
+Releasing stops playback and detaches MIDI without changing the server's song.
+
 To recover a silent mixer, use **Reset mix**. Check the computer's selected
 audio output, then press Play. Stop any old strudel.cc session to avoid two players.
 Use Chrome for Web MIDI/SysEx. MIDI is optional if your browser lacks support.

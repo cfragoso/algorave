@@ -1,5 +1,6 @@
 import {initStrudel, getAudioContext} from '@strudel/web/web.mjs';
 import {createMixer} from './mixer.js';
+import {sessionControls} from './session-ui.js';
 
 const $ = id => document.getElementById(id);
 const status = message => { $('status').textContent = message; };
@@ -16,12 +17,21 @@ const send = value => {
 };
 const showError = error => status(error.message);
 
+function renderControls(next) {
+  const controls = sessionControls({active, connected: socket?.readyState === WebSocket.OPEN, ...next});
+  $('enable').disabled = controls.enableDisabled;
+  $('enable').textContent = controls.enableLabel;
+  $('enable').title = controls.hint;
+  $('play').disabled = $('stop').disabled = $('midi').disabled = $('reset').disabled = controls.localDisabled;
+  $('release').hidden = controls.releaseHidden;
+  $('load').disabled = controls.loadDisabled;
+  $('device-status').textContent = controls.hint;
+}
+
 function render(next) {
   const changed = !state || state.revision !== next.revision;
   state = next;
-  $('enable').disabled = active || next.playerConnected || socket?.readyState !== WebSocket.OPEN;
-  $('play').disabled = $('stop').disabled = $('midi').disabled = $('reset').disabled = !active;
-  $('load').disabled = !next.playerConnected || !!next.pendingJob;
+  renderControls(next);
   if (!changed) return;
   $('tracks').replaceChildren();
   for (const track of next.song.tracks) {
@@ -122,7 +132,7 @@ async function connect() {
     lastMessage = Date.now();
     const message = JSON.parse(data);
     if (message.type === 'state') render(message);
-    if (message.type === 'error') { active = false; showError(new Error(message.error)); render(state); }
+    if (message.type === 'error') { active = false; if (state) render(state); showError(new Error(message.error)); }
     if (message.type === 'sync' || message.type === 'apply') {
       try {
         if (!active) throw new Error('Audio device is not enabled');
@@ -140,7 +150,7 @@ async function connect() {
     clearInterval(watchdog);
     // Fail closed: avoid an uncommandable player continuing after a network split.
     engine?.stop(); mixer?.disconnect(); active = false;
-    state = null; $('enable').disabled = $('play').disabled = $('load').disabled = true;
+    state = null; renderControls({playerConnected: false});
     $('login').style.display = 'flex';
     status('Disconnected; playback stopped. Click Connect, then enable the audio device again.');
   };
@@ -165,6 +175,14 @@ $('play').onclick = async () => {
   } catch (error) { showError(error); }
 };
 $('stop').onclick = () => { engine.stop(); send({type: 'playback', playing: false}); status('Stopped'); };
+$('release').onclick = () => {
+  engine?.stop();
+  mixer?.disconnect();
+  active = false;
+  send({type: 'release'});
+  if (state) renderControls(state);
+  status('Audio device released. You can enable it in another browser now.');
+};
 $('reset').onclick = () => { mixer.reset(); status('Audible mix restored · mute and solo cleared'); };
 $('midi').onclick = () => mixer.connect().then(status).catch(showError);
 $('load').onclick = () => submit('/api/songs/load', 'POST', {id: $('songs').value}).catch(showError);
