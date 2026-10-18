@@ -52,6 +52,18 @@ export function rewriteTrack(song, track) {
   return song;
 }
 
+export function setSongTempo(song, bpm) {
+  if (!Number.isFinite(bpm) || bpm < 40 || bpm > 250) throw new Error('Tempo must be 40–250 BPM');
+  const candidate = withSource(song);
+  const nodes = parse(candidate.code, {ecmaVersion: 2022, allowAwaitOutsideFunction: true}).body
+    .filter(node => node.type === 'ExpressionStatement' && node.expression.type === 'CallExpression' &&
+      ['setcpm','setCpm','setcps'].includes(node.expression.callee.name));
+  for (const node of nodes.reverse()) candidate.code = candidate.code.slice(0,node.start) + `setcpm(${bpm} / 4);` + candidate.code.slice(node.end);
+  if (!nodes.length) candidate.code = `setcpm(${bpm} / 4);\n` + candidate.code;
+  candidate.bpm = bpm;
+  return candidate;
+}
+
 // Capture AFTER transpilation: m() then retains original editor offsets.
 export function captureOutput(code, output) {
   const original = parse(code, {ecmaVersion: 2022, allowAwaitOutsideFunction: true}).body;

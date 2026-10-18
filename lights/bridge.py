@@ -28,6 +28,11 @@ class Lights:
     def blackout(self):
         self.frame[:] = bytes(512)
 
+    def colours(self, frame=None):
+        frame = self.frame if frame is None else frame
+        return [[frame[self.start - 1 + bar * self.pixels * 3 + self.order.index(c)]
+                 for c in "RGB"] for bar in range(self.bars)]
+
     def colour(self, bar, rgb, exclusive=False):
         if type(bar) is not int or not 1 <= bar <= self.bars:
             raise ValueError(f"bar must be 1..{self.bars}")
@@ -49,6 +54,11 @@ async def main(args):
     sequence = 0
     last_command = time.monotonic()
     owner = None
+    subscribers = set()
+    last_written = bytes(512)
+    frames_written = 0
+    last_publish = 0
+    publish_task = None
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -59,10 +69,23 @@ async def main(args):
         lights.blackout()
 
     def write():
+        frame = bytes(lights.frame)
         if usb:
-            data = packet(lights.frame)
+            data = packet(frame)
             if usb.write(data) != len(data):
                 raise OSError("Incomplete USB write")
+        return frame
+
+    def state():
+        return {"type": "state", "bars": args.bars, "pixelsPerBar": args.pixels,
+                "order": args.order, "limit": args.limit, "dryRun": args.dry_run,
+                "outputConnected": usb is not None, "framesWritten": frames_written,
+                "colours": lights.colours(last_written)}
+
+    async def publish():
+        if subscribers:
+            payload = json.dumps(state())
+            await asyncio.gather(*(ws.send(payload) for ws in list(subscribers)), return_exceptions=True)
 
     async def handler(ws):
         nonlocal sequence, last_command, owner
@@ -87,6 +110,13 @@ async def main(args):
                     elif kind == "status":
                         response = {"type": "status", "bars": args.bars, "pixelsPerBar": args.pixels,
                                     "order": args.order, "limit": args.limit, "dryRun": args.dry_run}
+                    elif kind == "subscribe":
+                        # Read-only: never take ownership or reset the watchdog.
+                        subscribers.add(ws)
+                        response = state()
+                    elif kind == "unsubscribe":
+                        subscribers.discard(ws)
+                        response = {"type": "unsubscribed"}
                     elif kind == "blackout":
                         blackout()
                         owner = ws
@@ -115,11 +145,13 @@ async def main(args):
                     await ws.send(json.dumps({"type": "error", "id": request.get("id") if isinstance(request, dict) else None,
                                               "message": str(exc)}))
         finally:
+            subscribers.discard(ws)
             if owner is ws:
                 blackout()
                 owner = None
 
     async def output():
+        nonlocal last_written, frames_written, last_publish, publish_task
         while not stop.is_set():
             now = time.monotonic()
             if now - last_command > args.watchdog:
@@ -127,7 +159,12 @@ async def main(args):
             while pending and pending[0][0] <= now:
                 _, _, command = heapq.heappop(pending)
                 lights.colour(command["bar"], command["rgb"], command.get("exclusive", False))
-            await asyncio.to_thread(write)
+            last_written = await asyncio.to_thread(write)
+            frames_written += 1
+            if now - last_publish >= 0.1 and (publish_task is None or publish_task.done()):
+                last_publish = now
+                # Monitor clients never hold up the USB output loop.
+                publish_task = asyncio.create_task(publish())
             await asyncio.sleep(1 / 30)
 
     try:
@@ -140,6 +177,8 @@ async def main(args):
             stopped.cancel()
             await task
     finally:
+        if publish_task:
+            publish_task.cancel()
         blackout()
         if usb:
             try:

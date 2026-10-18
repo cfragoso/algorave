@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {register} from 'node:module';
-import {withSource, replaceSource, partsIn} from '../public/source.js';
+import {withSource, replaceSource, partsIn, setSongTempo} from '../public/source.js';
 import {patchTrack} from '../model.js';
 
 register(new URL('../esm-resolution.mjs', import.meta.url));
@@ -83,4 +83,13 @@ test('scheduled events retain original token and part locations through compilat
     const label = event.context.algoraveLabel;
     assert.equal(code.slice(label.start, label.end), event.context.algoraveTrack + '$');
   }
+});
+
+test('deck tempo changes update the canonical score and preserve shared instruments', async()=>{
+  const original=await preset('south-african-awakening');
+  const updated=setSongTempo(original,124.5);
+  assert.match(updated.code,/setcpm\(124.5 \/ 4\)/);
+  const result=await compileSong(updated,{strip:(_column,pattern)=>pattern});
+  assert.equal(result.bpm,124.5);assert.ok(result.pattern.queryArc(8,9).length);
+  assert.throws(()=>setSongTempo(original,999),/Tempo/);
 });

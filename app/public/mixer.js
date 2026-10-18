@@ -2,6 +2,7 @@
 export function createMixer(mapping, ref) {
   const defaults = () => mapping.columns.map(() => ({...mapping.software_startup_normalized}));
   let values = defaults(), access, input, output, template = null, timer;
+  let received = mapping.columns.map(() => []);
   const renderLEDs = () => {
     if (!output || output.state === 'disconnected') return;
     const anySolo = values.some(v => v.solo > 0.5);
@@ -20,6 +21,7 @@ export function createMixer(mapping, ref) {
     mapping.columns.forEach((column, i) => Object.values(column.controls).forEach(control => {
       if (control.number !== number || control.channel !== (status & 15) + 1) return;
       const parameter = control.parameter;
+      if (!received[i].includes(parameter)) received[i].push(parameter);
       if (['mute', 'solo'].includes(parameter)) {
         if (raw !== 0 && raw !== 127) return;
         values[i][parameter] = values[i][parameter] ? 0 : 1;
@@ -34,7 +36,17 @@ export function createMixer(mapping, ref) {
     input = output = null;
   };
   return {
-    reset() { values = defaults(); renderLEDs(); },
+    reset() { values = defaults(); received = mapping.columns.map(() => []); renderLEDs(); },
+    snapshot() { return {values: values.map(v => ({...v})), received: received.map(v => [...v]),
+      connected: input?.state === 'connected', ledConnected: output?.state === 'connected', template}; },
+    set(column, parameter, value) {
+      if (!Number.isInteger(column) || column < 1 || column > 8 ||
+          !['volume', 'cutoff', 'resonance', 'reverb', 'mute', 'solo'].includes(parameter) ||
+          !Number.isFinite(value) || value < 0 || value > 1) throw new Error('Invalid mixer control');
+      values[column - 1][parameter] = ['mute', 'solo'].includes(parameter) ? Number(value >= 0.5) : value;
+      received[column - 1] = received[column - 1].filter(p => p !== parameter);
+      if(['mute','solo'].includes(parameter))renderLEDs();
+    },
     disconnect,
     async connect() {
       disconnect();

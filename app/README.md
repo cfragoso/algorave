@@ -16,8 +16,8 @@ npm start
 ```
 
 Open <http://127.0.0.1:3000>. Click **Enable audio device**, then **Play**.
-The initial set is just the kick. Select **Night Bus** and click **Load song**
-for the full arrangement. Connect MIDI separately with **Connect Launch Control XL**;
+The initial set is just the kick. Select **Night Bus** and click **LOAD ▸**
+for the full arrangement. Connect MIDI separately with **Connect MIDI**;
 audio works without MIDI. Retain the hardware template used during mapping.
 On restart, `npm start` is enough unless dependencies or browser code changed.
 Browser code changes require `npm run build` and a page reload.
@@ -33,6 +33,41 @@ Releasing stops playback and detaches MIDI without changing the server's song.
 To recover a silent mixer, use **Reset mix**. Check the computer's selected
 audio output, then press Play. Stop any old strudel.cc session to avoid two players.
 Use Chrome for Web MIDI/SysEx. MIDI is optional if your browser lacks support.
+
+## Performance console
+
+The CDJ-inspired deck shares its player with the editor and API. **Play** switches
+to **Pause** while running; pause retains the position. **CUE** and **Stop** return
+to the start. Loading a song preserves the clock: cue it before playing if you
+want its first bar. The jog wheel displays beat/rotation; scratching is not implemented.
+The tempo fader changes the score's top-level tempo through `/api/tempo`;
+its reset button restores the preset BPM. Invalid score updates retain the current song.
+
+The coloured waveform is measured from Strudel's actual master output. It builds
+a rolling history as sound plays, rather than predicting the rest of a generated
+song. Zoom changes the history window; **Scope** shows the current waveform.
+The meter reports RMS dBFS, with a peak clipping indicator. These measure the
+browser audio graph, before the computer's output volume. The bar/beat display
+uses Strudel's cycle clock, assuming four beats per cycle. Progress follows a
+preset's optional `bars` metadata, or a repeating 16-bar phrase if unspecified.
+
+The Launch Control XL view mirrors all 24 knobs, eight faders, mute and solo.
+You can operate these controls on screen in the audio browser. Physical MIDI
+movements update the same mix and button LEDs; remote browsers receive the mix,
+waveform and activity over WebSocket at about 15 Hz. Initial knob/fader positions
+are the software mix: the physical positions become known when a control sends
+a MIDI message. Reset mix restores the audible defaults. Instrument activity is
+derived from scheduled events; it is separate from the measured master level.
+
+Expand **Lighting connection**, enter your bridge URL (default
+`ws://127.0.0.1:8765`), and click **Connect lights**. Start the updated bridge using
+the [lighting instructions](../lights/README.md). The eight bars show the last
+successfully written DMX frame, refreshed at up to 10 Hz. This is reported output,
+not optical feedback from the lamps. Preview colours are scaled to the bridge's
+brightness limit for legibility; hover a bar for raw DMX RGB. Disconnection marks
+colours stale. `--dry-run` is explicitly labelled **SIMULATION**. Connecting the
+monitor does not send lighting commands or keep the lighting watchdog alive.
+Beat-driven lighting patterns still run separately through the bridge.
 
 ## Build the music live
 
@@ -113,9 +148,16 @@ change bank or switch between a drum and a synth.
 | POST | `/api/songs/load` | Load `{ "id": "night-bus" }` or `live-set` |
 | POST | `/api/code` | Update the full score with `{ "code": "…", "revision": 3 }` |
 | PATCH | `/api/tracks/:id` | Change `code`, `sound` and/or `enabled` |
+| PATCH | `/api/tempo` | Change BPM with `{ "bpm": 124 }` (40–250) |
 | GET | `/api/jobs/:id` | Inspect `pending`, `applied` or `failed` |
 
 Track IDs: `kick`, `clap`, `closed_hats`, `percussion`, `bass`, `lead`, `chords`, `vocals`.
+
+State responses include fresh player `telemetry` when available (at most two
+seconds old): cycle, elapsed seconds, playing state, waveform samples, peak/RMS,
+frequency bands and mixer state. WebSocket observers receive `telemetry` messages
+with `frame` and `revision`. Audio samples are downsampled for display, not an
+audio stream. Only the claimed audio player can publish telemetry.
 
 ```sh
 curl http://127.0.0.1:3000/api/state

@@ -68,6 +68,8 @@ test('edits commit only after the designated player accepts; errors retain the p
   observer.send({type: 'activity', revision: 1, ranges: [{start: 0, end: 2}, {start: -1, end: 1}], labels: []});
   const activity = await player.wait('activity');
   assert.deepEqual(activity.ranges, [{start: 0, end: 2}]);
+  observer.send({type:'telemetry',revision:1,frame:{cycle:1,elapsed:2,playing:true}});
+  assert.equal((await player.wait('telemetry')).frame.elapsed,2);
 });
 
 test('authentication, browser session cookies and origin checks', async t => {
@@ -104,6 +106,11 @@ test('full editor updates share the track API and reject stale drafts', async t 
   assert.match(updated.song.code, /const phrase/);
   assert.match(updated.song.code, /\.s\('square'\)/);
   player.send({type: 'result', jobId: patch.body.id, ok: false, error: 'Test rejection'});
+  for(let i=0;i<50 && (await request('/api/state')).body.pendingJob;i++)await new Promise(r=>setTimeout(r,5));
+  const tempo=await request('/api/tempo','PATCH',{bpm:122});
+  assert.equal(tempo.status,202);
+  assert.match((await player.wait('apply')).song.code,/setcpm\(122 \/ 4\)/);
+  player.send({type:'result',jobId:tempo.body.id,ok:true,bpm:122});
 });
 
 test('disconnects and timeouts fail pending updates without advancing revision', async t => {

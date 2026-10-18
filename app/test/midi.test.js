@@ -41,7 +41,13 @@ test('verified button toggles, solo exclusions, fader channel and reconnect pres
   mixer.reset(); assert.equal(gain(1), 0.65); assert.equal(led(37), 12);
   cc(1, 77, 0); assert.equal(gain(1), 0.65); // Fader actually uses channel 2.
   cc(2, 77, 64); assert.equal(gain(1), 64 / 127);
+  assert.equal(mixer.snapshot().values[0].volume, 64 / 127);
+  assert.ok(mixer.snapshot().received[0].includes('volume'));
+  assert.equal(mixer.snapshot().connected, true);
   await mixer.connect();
   cc(1, 41, 127); assert.equal(gain(1), 0); // Reconnect must not double-register the listener.
   mixer.reset(); assert.equal(gain(1), 0.65);
+  mixer.set(1, 'volume', 0.4); assert.equal(gain(1), 0.4);
+  mixer.set(1, 'mute', 1); assert.equal(gain(1), 0); assert.equal(led(24), 12);
+  assert.throws(()=>mixer.set(9,'volume',0.4));
 });

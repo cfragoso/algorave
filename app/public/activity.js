@@ -7,14 +7,15 @@ export function createActivityClock() {
           Number(hap.value?.postgain ?? 1) <= 0 || Number(hap.value?.gain ?? 1) <= 0) return;
       const context = hap.context || {};
       events.push({time, end: time + Math.max(0.07, duration), source: context.algoraveSource,
-        ranges: context.locations || [], label: context.algoraveLabel});
+        ranges: context.locations || [], label: context.algoraveLabel, track: context.algoraveTrack});
       if (events.length > 4096) events = events.slice(-4096);
     },
     frame(time, source) {
       events = events.filter(event => event.end > time && event.source === source);
       const active = events.filter(event => event.time <= time);
       return {ranges: validRanges(active.flatMap(event => event.ranges), source.length),
-        labels: validRanges(active.map(event => event.label), source.length)};
+        labels: validRanges(active.map(event => event.label), source.length),
+        tracks: [...new Set(active.map(event => event.track).filter(Boolean))].slice(0, 8)};
     },
   };
 }

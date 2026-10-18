@@ -5,8 +5,9 @@ import path from 'node:path';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { patchTrack, validateSong } from './model.js';
-import {withSource, replaceSource} from './public/source.js';
+import {withSource, replaceSource, setSongTempo} from './public/source.js';
 import {validRanges} from './public/activity.js';
+import {normalizeTelemetry} from './public/monitor.js';
 
 const appDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(appDir);
@@ -31,6 +32,7 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
   }
   let song = initialSong ? withSource(validateSong(initialSong)) : structuredClone(songs.get('live-set'));
   let revision = initialRevision, player = null, pending = null, playback = false;
+  let telemetry = null, telemetryAt = 0;
   const jobs = new Map();
   const cookie = randomBytes(32).toString('hex');
   const ws = new WebSocketServer({noServer: true, maxPayload: 256000});
@@ -38,7 +40,8 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
     equal((req.headers.cookie || '').split(';').map(p => p.trim()).find(p => p.startsWith('algorave='))?.slice(9), cookie);
   const sameOrigin = req => !req.headers.origin || req.headers.origin === 'http://' + req.headers.host ||
     req.headers.origin === 'https://' + req.headers.host;
-  const state = () => ({song, revision, playerConnected: !!player, playback, pendingJob: pending?.id ?? null});
+  const state = () => ({song, revision, playerConnected: !!player, playback, pendingJob: pending?.id ?? null,
+    telemetry: Date.now() - telemetryAt < 2000 ? telemetry : null});
   const send = (client, value) => client.readyState === WebSocket.OPEN && client.send(JSON.stringify(value));
   const broadcast = () => ws.clients.forEach(client => send(client, {type: 'state', ...state()}));
   const finish = (status, error) => {
@@ -87,6 +90,11 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
         if (!authenticated(req)) return json(res, 401, {error: 'API token required'});
         if (req.method === 'GET' && url.pathname === '/api/state') return json(res, 200, state());
         if (req.method === 'GET' && url.pathname === '/api/songs') return json(res, 200, [...songs.values()]);
+        if (req.method === 'PATCH' && url.pathname === '/api/tempo') {
+          const input = await body(req);
+          const result = enqueue(validateSong(setSongTempo(song, input.bpm)));
+          return json(res, result.status, result.body);
+        }
         if (req.method === 'POST' && url.pathname === '/api/code') {
           const input = await body(req);
           if (input.revision !== revision) return json(res, 409, {error: 'Song changed since this draft started. Download your draft, then use current song before applying again.'});
@@ -150,6 +158,7 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
           send(client, {type: 'sync', song, revision});
           broadcast();
         } else if (message.type === 'release' && client === player) {
+          telemetry = null;
           player = null; playback = false;
           finish('failed', 'Audio device released');
           broadcast();
@@ -160,6 +169,12 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
             revision++;
           }
           finish(message.ok === true ? 'applied' : 'failed', message.error || (message.ok === true ? undefined : 'Player rejected update'));
+        } else if (message.type === 'telemetry' && client === player && message.revision === revision) {
+          const frame = normalizeTelemetry(message.frame);
+          if (frame) {
+            telemetry = frame; telemetryAt = Date.now();
+            ws.clients.forEach(observer => { if (observer !== player) send(observer, {type:'telemetry', revision, frame}); });
+          }
         } else if (message.type === 'activity' && client === player && playback && message.revision === revision) {
           const frame = {type: 'activity', revision,
             ranges: validRanges(message.ranges, song.code.length), labels: validRanges(message.labels, song.code.length)};
@@ -174,6 +189,7 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
     client.on('close', () => {
       if (client !== player) return;
       player = null; playback = false;
+      telemetry = null;
       finish('failed', 'Audio device disconnected');
       broadcast();
     });

@@ -1,14 +1,18 @@
-import {initStrudel, getAudioContext, webaudioOutput} from '@strudel/web/web.mjs';
+import {initStrudel, getAudioContext, webaudioOutput, getSuperdoughAudioController} from '@strudel/web/web.mjs';
 import {createMixer} from './mixer.js';
 import {sessionControls} from './session-ui.js';
 import {compileSong} from './compile.js';
 import {createSongEditor} from './editor.js';
 import {createActivityClock} from './activity.js';
+import {createAudioMonitor} from './monitor.js';
+import {createPerformanceConsole} from './console.js';
+import {createLightsMonitor} from './lights-monitor.js';
 
 const $ = id => document.getElementById(id);
 const status = message => { $('status').textContent = message; };
 let socket, engine, mixer, active = false, compiled, state, desiredSong;
 let applyQueue = Promise.resolve();
+let audioMonitor, elapsed = 0, beganAt = null, pausedCycle = 0;
 const activity = createActivityClock();
 const api = async (url, options = {}) => {
   const response = await fetch(url, {headers: {'Content-Type': 'application/json', ...options.headers}, ...options});
@@ -21,6 +25,14 @@ const send = value => {
   socket.send(JSON.stringify(value));
 };
 const showError = error => status(error.message);
+const deck = createPerformanceConsole({
+  onMix: (column, parameter, value) => { if (active && mixer) { mixer.set(column,parameter,value); deck.mixer(mixer.snapshot()); } },
+  onTempo: bpm => submit('/api/tempo','PATCH',{bpm}),
+  report: showError,
+});
+createLightsMonitor();
+fetch('/mapping.json').then(response=>response.json()).then(mapping=>deck.mixer({connected:false,ledConnected:false,
+  values:Array.from({length:8},()=>({...mapping.software_startup_normalized})), received:[]})).catch(showError);
 const editor = createSongEditor({
   apply: (code, revision) => submit('/api/code', 'POST', {code, revision}),
   report: showError,
@@ -39,7 +51,13 @@ requestAnimationFrame(animateActivity);
 // Remote feedback must not depend on this tab's paint/visibility cycle.
 setInterval(() => {
   if (active && socket?.readyState === WebSocket.OPEN && state) {
-    send({type: 'activity', revision: state.revision, ...currentActivityFrame()});
+    const frame = currentActivityFrame();
+    send({type: 'activity', revision: state.revision, ...frame});
+    const telemetry = {cycle:engine?.scheduler.started ? Math.max(0,engine.scheduler.now()) : pausedCycle,
+      elapsed:elapsed+(beganAt===null?0:getAudioContext().currentTime-beganAt), playing:!!engine?.scheduler.started,
+      mixer:mixer?.snapshot(), audio:audioMonitor?.capture(), tracks:frame.tracks || []};
+    deck.telemetry(telemetry);
+    send({type:'telemetry',revision:state.revision,frame:telemetry});
   }
 }, 67);
 
@@ -51,10 +69,12 @@ function renderControls(next) {
   $('play').disabled = $('stop').disabled = $('midi').disabled = $('reset').disabled = controls.localDisabled;
   $('release').hidden = controls.releaseHidden;
   $('load').disabled = controls.loadDisabled;
+  deck.state(next,active);
   $('device-status').textContent = controls.hint;
 }
 
 function render(next) {
+  if (!state) $('songs').value = next.song.id;
   const changed = !state || state.revision !== next.revision;
   state = next;
   renderControls(next);
@@ -127,6 +147,8 @@ async function initEngine() {
   });
   const mapping = await (await fetch('/mapping.json')).json();
   mixer = createMixer(mapping, globalThis.ref);
+  audioMonitor = createAudioMonitor(context,()=>getSuperdoughAudioController().output.destinationGain);
+  deck.mixer(mixer.snapshot());
 }
 
 async function submit(url, method, payload) {
@@ -143,6 +165,7 @@ async function submit(url, method, payload) {
 
 async function connect() {
   const songs = await api('/api/songs');
+  deck.catalog(songs);
   $('login').style.display = 'none';
   $('songs').replaceChildren(...songs.map(song => new Option(song.name, song.id)));
   socket?.close();
@@ -158,6 +181,8 @@ async function connect() {
     lastMessage = Date.now();
     const message = JSON.parse(data);
     if (message.type === 'state') render(message);
+    if (message.type === 'state' && !active && message.telemetry) deck.telemetry(message.telemetry);
+    if (message.type === 'telemetry' && !active && message.revision === state?.revision) deck.telemetry(message.frame);
     if (message.type === 'activity' && !active && message.revision === state?.revision) editor.highlight(message);
     if (message.type === 'error') { active = false; if (state) render(state); showError(new Error(message.error)); }
     if (message.type === 'sync' || message.type === 'apply') {
@@ -180,6 +205,8 @@ async function connect() {
     clearInterval(watchdog);
     // Fail closed: avoid an uncommandable player continuing after a network split.
     engine?.stop(); mixer?.disconnect(); active = false;
+    deck.clear();
+    elapsed=0;beganAt=null;pausedCycle=0;
     state = null; renderControls({playerConnected: false});
     editor.disconnected();
     $('login').style.display = 'flex';
@@ -199,16 +226,26 @@ $('enable').onclick = async () => {
 };
 $('play').onclick = async () => {
   try {
+    if(engine.scheduler.started){
+      pausedCycle=Math.max(0,engine.scheduler.now());
+      if(beganAt!==null)elapsed+=getAudioContext().currentTime-beganAt;
+      beganAt=null; engine.pause();send({type:'playback',playing:false});status('Paused');return;
+    }
     await getAudioContext().resume();
     if (!compiled) throw new Error('Wait for audio device setup');
     await engine.setPattern(compiled, true);
+    beganAt=getAudioContext().currentTime;
     send({type: 'playback', playing: true}); status('Playing · ' + desiredSong.name);
   } catch (error) { showError(error); }
 };
-$('stop').onclick = () => { engine.stop(); send({type: 'playback', playing: false}); status('Stopped'); };
+function cue() { engine.stop();elapsed=0;beganAt=null;pausedCycle=0;send({type:'playback',playing:false});status('Cued · bar 1'); }
+$('stop').onclick = cue;
+$('cue').onclick = cue;
 $('release').onclick = () => {
   engine?.stop();
+  elapsed=0;beganAt=null;pausedCycle=0;
   mixer?.disconnect();
+  if(mixer)deck.mixer(mixer.snapshot());
   active = false;
   send({type: 'release'});
   if (state) renderControls(state);

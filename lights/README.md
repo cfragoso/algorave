@@ -80,6 +80,12 @@ On macOS run this USB endpoint natively; other services can still run in Docker.
 
 - `ping` / `pong`: echoes `id` and supplies server monotonic seconds.
 - `status`: reports layout, output limit, and simulation mode.
+- `subscribe` / `unsubscribe`: read-only live monitoring. After authentication,
+  subscribers receive `state` frames at up to 10 Hz, including `colours` (RGB per
+  bar), `framesWritten`, `outputConnected`, layout, limit and `dryRun`. Colours
+  come from the last successful serial write (or simulated write), not a lamp
+  sensor. Subscribers do not claim command ownership, reset the watchdog, or
+  blackout when they disconnect. Use this from the app's Lighting connection panel.
 - `bar`: `bar` is 1-based, `rgb` is three values 0–255, `exclusive` clears
   other bars, optional `executeAt` is server monotonic seconds (up to 1 s ahead).
 - `blackout`: clears all channels and scheduled events immediately.
@@ -95,3 +101,6 @@ Sources: [garageCube specifications](https://shop.garagecube.com/products/4-led-
 
 For a USB-free connection test, run `.venv/bin/python bridge.py --dry-run`.
 The beat-synchronized example is [patterns/beat-pulse.js](patterns/beat-pulse.js).
+
+USB-free regression checks: `.venv/bin/python -m unittest discover -s . -v`.
+These verify frame layout, observer behaviour and watchdog expiry in simulation.
