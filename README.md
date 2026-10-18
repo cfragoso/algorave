@@ -7,6 +7,7 @@ Start on one laptop; the lighting endpoint can later run on another device.
 
 | Folder | Contents |
 | --- | --- |
+| [app/](app/README.md) | Browser Strudel player, song/track API and Docker setup |
 | [songs/](songs/README.md) | Complete songs and small scores for live coding |
 | [vocals/](vocals/README.md) | Vocal sample manifest and a folder for your recordings |
 | [lights/](lights/README.md) | ENTTEC DMX USB PRO bridge, light tests, Strudel lighting patterns and Dockerfile |
@@ -60,7 +61,7 @@ natively; its Dockerfile is intended for native Linux device passthrough.
 - Song playback, all 48 MIDI assignments and first-column mute/LED behavior were checked on the user's setup.
 - MIDI state handling and LED messages were checked with simulated events.
 - The lighting endpoint has opened the ENTTEC and written frames; physical RGB order and bar boundaries still need visual confirmation.
-- The remote song-loading/instrument-replacement API is a planned component, not implemented here.
+- The [app/API](app/README.md) loads structured songs and replaces individual patterns or sounds, preserving MIDI mix controls. Next-bar quantization and shared lighting synchronization remain planned.
 - Vocal audio is loaded from TidalCycles Dirt-Samples; no third-party audio files are bundled.
 
 This repository uses Strudel but does not bundle its engine. See [Strudel](https://strudel.cc)

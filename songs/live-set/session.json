@@ -1,0 +1,63 @@
+{
+  "id": "live-set",
+  "name": "Build it live \u00b7 start with kick",
+  "bpm": 134,
+  "tracks": [
+    {
+      "id": "kick",
+      "column": 1,
+      "code": "s(\"bd*4\").bank(\"tr909\").gain(0.6)",
+      "sound": null,
+      "enabled": true
+    },
+    {
+      "id": "clap",
+      "column": 2,
+      "code": "s(\"~ cp ~ cp\").bank(\"tr909\").gain(0.25)",
+      "sound": null,
+      "enabled": false
+    },
+    {
+      "id": "closed_hats",
+      "column": 3,
+      "code": "s(\"hh*8\").bank(\"tr909\").gain(\"0.12 0.06\")",
+      "sound": null,
+      "enabled": false
+    },
+    {
+      "id": "percussion",
+      "column": 4,
+      "code": "s(\"~ oh ~ oh ~ oh ~ oh\").bank(\"tr909\").gain(0.1)",
+      "sound": null,
+      "enabled": false
+    },
+    {
+      "id": "bass",
+      "column": 5,
+      "code": "note(\"~ e2 ~ e2 ~ e2 ~ e2\").s(\"sawtooth\").decay(0.12).sustain(0).gain(0.12)",
+      "sound": null,
+      "enabled": false
+    },
+    {
+      "id": "lead",
+      "column": 6,
+      "code": "note(\"e3 g3 b3 d4\").s(\"sawtooth\").decay(0.1).sustain(0).gain(0.07)",
+      "sound": null,
+      "enabled": false
+    },
+    {
+      "id": "chords",
+      "column": 7,
+      "code": "note(\"[e3,g3,b3]\").s(\"triangle\").decay(0.3).sustain(0).gain(0.08)",
+      "sound": null,
+      "enabled": false
+    },
+    {
+      "id": "vocals",
+      "column": 8,
+      "code": "s(\"nightvox:0 ~ ~ ~\").slow(4).gain(0.18)",
+      "sound": null,
+      "enabled": false
+    }
+  ]
+}

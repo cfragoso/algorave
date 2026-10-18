@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Algorave · control room</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header><span class="eyebrow">ALGORAVE / 01</span><h1>Build the room.</h1>
+    <p>Eight tracks. One shared groove. Add a part, change a phrase, let it breathe.</p>
+  </header>
+  <section class="toolbar" aria-label="Session controls">
+    <form id="login"><input id="token" type="password" placeholder="API token (if configured)" aria-label="API token"><button>Connect</button></form>
+    <button id="enable" disabled>Enable audio device</button><button id="play" disabled>Play</button><button id="stop" disabled>Stop</button>
+    <button id="midi" disabled>Connect Launch Control XL</button><button id="reset" disabled>Reset mix</button>
+    <select id="songs" aria-label="Song"></select><button id="load" disabled>Load song</button>
+  </section>
+  <p id="status" role="status">Connecting…</p>
+  <main id="tracks"></main>
+  <footer>Audio plays on the enabled device. Other browsers control its tracks through the API.
+    <a href="https://github.com/cfragoso/algorave">Project source</a> ·
+    <a href="https://strudel.cc/technical-manual/project-start/">Powered by Strudel</a>
+  </footer>
+  <script type="module" src="/player.js"></script>
+</body>
+</html>

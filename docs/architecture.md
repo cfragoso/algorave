@@ -12,15 +12,17 @@ ENTTEC DMX USB PRO frames. It can run on the laptop now or on a Linux device
 next to the fixtures later. Lighting examples use localhost by default; change
 their WebSocket URL when moving the bridge to another device.
 
-## Planned, not implemented
+The [app](../app/README.md) adds an HTTP API and one designated browser audio player
+connected over WebSocket. Structured song presets live in `songs/*/session.json`.
+It loads songs, replaces track expressions or sounds, and preserves the local MIDI
+mix. Writes are acknowledged by the player; failed evaluations retain the previous
+confirmed song. Authentication is required for a server bound to a network interface.
 
-A control server will provide an HTTP API and route commands to a Strudel
-player over WebSocket. Proposed operations:
+## Still planned
 
-- Load a song from `songs/` at the next bar.
-- Replace one track's pattern, preserving its mix controls.
-- Replace an instrument while retaining the note pattern.
-- Report playback state and reject invalid code without replacing good music.
+- Next-bar quantization; current changes affect upcoming scheduler events.
+- Shared timing/latency compensation for visuals and lighting.
+- Persistent live edits and remote audio-output selection.
 
 The audio device should schedule notes locally. Visuals and lighting should
 use the same musical timeline with measured latency compensation. Existing

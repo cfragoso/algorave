@@ -1,0 +1,23 @@
+{
+  "name": "algorave-control",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "build": "vite build"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@strudel/web": "1.3.0",
+    "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "vite": "6.4.4",
+    "vite-plugin-bundle-audioworklet": "0.1.2"
+  },
+  "license": "AGPL-3.0-or-later"
+}
