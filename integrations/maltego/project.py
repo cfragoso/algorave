@@ -7,6 +7,7 @@ load_dotenv(Path(__file__).with_name('.env'))
 import transforms  # noqa: F401 — registers entities and transforms
 import mixer_transforms  # noqa: F401
 import generate_transform  # noqa: F401
+import song_management  # noqa: F401
 from maltego.server import MaltegoServerSettings, run_server
 from tls import create_certificate
 

@@ -3,6 +3,7 @@ initPanelViews();
 import {createMasterAudio} from './master-audio.js';
 import {patchMaster} from './master-model.js';
 const $=id=>document.getElementById(id),ids=['A','B'];
+let librarySongs=new Map(),songActionBusy=false,songManagementReady=false;
 let socket,state,active=false,busy=false,midiConnected=false,midiConnecting=false,mixWorking=false,mixQueued=null,desiredMix,claimResolve,claimReject,remoteMaster=null,remoteAt=0;
 window.algoraveSession={audio:null,ownerId:null};
 let setupSelectionInitialized=false;
@@ -22,7 +23,7 @@ $('crossfader').oninput=()=>queueMix({crossfader:Number($('crossfader').value)})
 async function outputs(){if(!navigator.mediaDevices?.enumerateDevices)return;const devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='audiooutput'&&d.deviceId&&d.deviceId!=='default');$('output-device').replaceChildren(new Option('System default',''),...devices.map((d,i)=>new Option(d.label||'Audio output '+(i+1),d.deviceId)));if(state?.mixer.sinkId&&![...$('output-device').options].some(o=>o.value===state.mixer.sinkId))$('output-device').add(new Option('Previously selected output',state.mixer.sinkId));$('output-device').value=state?.mixer.sinkId||'';}
 $('choose-output').onclick=async()=>{try{if(!navigator.mediaDevices?.selectAudioOutput)throw new Error('Use the output menu or select a device in your system audio settings');const choice=await navigator.mediaDevices.selectAudioOutput();await outputs();queueMix({sinkId:choice.deviceId});}catch(error){fail(error);}};
 function render(next){state=next;renderSetup(next);$('enable').disabled=busy||active||next.playerConnected;$('enable').textContent=active?'Audio enabled here':next.playerConnected?'Audio active elsewhere':'Enable audio device';$('release').hidden=!active;$('session-state').textContent=ids.some(id=>next.decks[id].playback)?'● LIVE':next.playerConnected?'READY':'STANDBY';$('session-note').textContent=active?'Both decks feed this browser’s shared master output. Release audio before switching browsers.':next.playerConnected?'Remote control mode · changes go to the active audio browser.':'Enable audio here, then load a song into A or B and press Play in that deck.';
- for(const id of ids){const d=next.decks[id];$('load-'+id).disabled=!d.playerConnected||!!d.pendingJob;$('deck-state-'+id).textContent=d.pendingJob?'UPDATING':d.playback?'PLAYING':d.playerConnected?'READY':'STANDBY';}
+ for(const id of ids){const d=next.decks[id];$('load-'+id).disabled=!d.playerConnected||!!d.pendingJob||!$('library-song').value;$('deck-state-'+id).textContent=d.pendingJob?'UPDATING':d.playback?'PLAYING':d.playerConnected?'READY':'STANDBY';}
  $('connect-midi').disabled=!active||busy||midiConnecting;$('midi-target').disabled=!active||busy||midiConnecting;document.querySelectorAll('.main-mixer input,.main-mixer button:not(.panel-toggle),.main-mixer select').forEach(el=>el.disabled=!next.playerConnected||next.restoring);$('choose-output').disabled=!active||!navigator.mediaDevices?.selectAudioOutput;$('output-note').textContent=runtime.audio?.context.setSinkId?'Both decks use this output.':'Output selection depends on browser support; system default always works.';
  if(!mixWorking){$('crossfader').value=next.mixer.crossfader;$('master-volume').value=next.mixer.master;$('master-value').textContent=Math.round(next.mixer.master*100)+'%';for(const id of ids)for(const p of ['volume','low','mid','high']){$(id+'-'+p).value=next.mixer.channels[id][p];$(id+'-'+p+'-value').textContent=p==='volume'?Math.round(next.mixer.channels[id][p]*100)+'%':next.mixer.channels[id][p].toFixed(1)+' dB';}$('output-device').value=next.mixer.sinkId;}}
 async function release(){runtime.audio?.silence();ids.forEach(id=>deck(id)?.release());active=false;busy=false;midiConnected=false;runtime.ownerId=null;if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:'release'}));$('connect-midi').textContent='Connect MIDI';if(state)render(state);}
@@ -43,7 +44,7 @@ async function connectMidi(){
 runtime.connectMidi=async id=>{$('midi-target').value=id;commitUi();await connectMidi();return 'MIDI target · deck '+id;};
 $('connect-midi').onclick=connectMidi;$('midi-target').onchange=()=>{commitUi();if(midiConnected)connectMidi();};
 window.addEventListener('message',event=>{if(event.origin!==location.origin||event.data?.type!=='deck-height'||!ids.includes(event.data.deck))return;const frame=$('frame-'+event.data.deck);if(event.source!==frame.contentWindow)return;if(Number.isFinite(event.data.height))frame.style.height=Math.max(180,Math.min(12000,event.data.height+4))+'px';});
-async function refreshLibrary(){const songs=await api('/api/songs'),selected=$('library-song').value;$('library-song').replaceChildren(...songs.map(song=>new Option(song.name+' · '+song.bpm+' BPM',song.id)));if(songs.some(song=>song.id===selected))$('library-song').value=selected;}
+async function refreshLibrary(){const songs=await api('/api/songs'),selected=$('library-song').value;librarySongs=new Map(songs.map(song=>[song.id,song]));$('library-song').replaceChildren(...songs.map(song=>new Option(song.name+' · '+song.bpm+' BPM',song.id)));if(songs.some(song=>song.id===selected))$('library-song').value=selected;await refreshDeletedSongs();updateSongActions();if(state)render(state);}
 async function connect(){await refreshLibrary();socket?.close();socket=new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws?scope=session`);const connection=socket;let lastMessage=Date.now();const watchdog=setInterval(()=>{if(Date.now()-lastMessage>15000){runtime.audio?.silence();connection.close();}},2000);
  socket.onmessage=async({data})=>{if(socket!==connection)return;lastMessage=Date.now();const message=JSON.parse(data);if(message.type==='catalogueChanged'){refreshLibrary().catch(fail);}if(message.type==='state'){render(message);if(message.telemetry){remoteMaster=message.telemetry;remoteAt=performance.now();}}if(message.type==='masterTelemetry'){remoteMaster=message.frame;remoteAt=performance.now();}if(message.type==='sync'){runtime.ownerId=message.ownerId;claimResolve?.();claimResolve=claimReject=null;}if(message.type==='error'){claimReject?.(new Error(message.error));claimResolve=claimReject=null;fail(new Error(message.error));}if(message.type==='restoreSetup'){
    try{const prepared=await Promise.all(ids.map(id=>deck(id).prepareSetup(message.setup.decks[id])));if(!active||socket!==connection)throw new Error('Audio device released during setup preparation');await runtime.audio.apply(message.setup.mixer);if(!active||socket!==connection){runtime.audio.silence();throw new Error('Audio device released during setup restore');}ids.forEach((id,i)=>deck(id).commitSetup(prepared[i]));$('midi-target').value=message.setup.ui.midiTarget;ids.forEach(id=>deck(id).disconnectMidi());if(midiConnected&&midiAccess){try{await deck(message.setup.ui.midiTarget).connectMidi(midiAccess);}catch(error){midiConnected=false;note('Setup loaded · reconnect MIDI: '+error.message);}}connection.send(JSON.stringify({type:'result',jobId:message.jobId,ok:true,bpms:Object.fromEntries(ids.map((id,i)=>[id,prepared[i].bpm]))}));}
@@ -95,4 +96,39 @@ $('new-song-form').onsubmit = async event => {
   } catch (error) {
     status.textContent = error.message + ' Your prompt is kept. If saving was interrupted, check the library before retrying.';
   } finally { button.disabled = false; button.textContent = 'Generate song'; }
+};
+
+function updateSongActions(force=false){
+  const song=librarySongs.get($('library-song').value);
+  if(force||document.activeElement!==$('library-name'))$('library-name').value=song?.name||'';
+  $('library-name').disabled=$('rename-song').disabled=$('delete-song').disabled=songActionBusy||!song||!songManagementReady;
+}
+async function refreshDeletedSongs(){
+  const selected=$('deleted-song-list').value;let songs;
+  try {songs=await api('/api/songs/deleted');songManagementReady=true;}
+  catch(error){if(error.message!=='Unknown endpoint')throw error;songManagementReady=false;$('deleted-song-list').replaceChildren(new Option('Available after API restart',''));$('restore-song').disabled=true;return;}
+  $('deleted-song-list').replaceChildren(new Option(songs.length?'Choose a deleted song':'No deleted songs',''),...songs.map(song=>new Option(song.name,song.id)));
+  if(songs.some(song=>song.id===selected))$('deleted-song-list').value=selected;
+  $('restore-song').disabled=songActionBusy||!$('deleted-song-list').value;
+}
+$('library-song').onchange=()=>{updateSongActions(true);if(state)render(state);};
+$('deleted-song-list').onchange=()=>{$('restore-song').disabled=!$('deleted-song-list').value;};
+async function songAction(work){
+  songActionBusy=true;updateSongActions();$('restore-song').disabled=true;
+  try{await work();await refreshLibrary();}catch(error){$('song-action-status').textContent=error.message;}
+  finally{songActionBusy=false;updateSongActions();$('restore-song').disabled=!$('deleted-song-list').value;}
+}
+$('rename-song').onclick=()=>{
+  const id=$('library-song').value,name=$('library-name').value.trim();
+  if(!name){$('song-action-status').textContent='Enter a song name first.';return;}
+  songAction(async()=>{const song=await api('/api/songs/'+encodeURIComponent(id),'PATCH',{name});$('song-action-status').textContent='Renamed to “'+song.name+'”. Loaded decks keep their current copy.';});
+};
+$('delete-song').onclick=()=>{
+  const song=librarySongs.get($('library-song').value);if(!song)return;
+  if(!confirm('Remove “'+song.name+'” from the library? You can restore it from Deleted songs. Loaded decks are unchanged.'))return;
+  songAction(async()=>{await api('/api/songs/'+encodeURIComponent(song.id),'DELETE');$('song-action-status').textContent='Deleted “'+song.name+'”. Recover it from Deleted songs.';});
+};
+$('restore-song').onclick=()=>{
+  const id=$('deleted-song-list').value;if(!id)return;
+  songAction(async()=>{const song=await api('/api/songs/'+encodeURIComponent(id)+'/restore','POST',{});$('song-action-status').textContent='Restored “'+song.name+'”.';});
 };

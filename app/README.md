@@ -394,3 +394,11 @@ Open **＋ New song** in the shared library, describe the groove (for example `M
 This is an offline procedural generator supporting house, techno, trance, ambient, mood words and a BPM hint (40–250). It creates eight MIDI-mapped parts over 96 bars; phrase text determines the title and seeded musical variation. It does not use an LLM or generate vocal recordings. Existing vocal chops still require the normal sample downloads. Identical prompts reproduce the composition with new IDs.
 
 Songs persist in `app/data/songs/`, separate from named setups and bundled songs. Override with `ALGORAVE_SONG_DATA_DIR`. For Docker, add `-e ALGORAVE_SONG_DATA_DIR=/data/songs -v algorave-songs:/data/songs` to the run command so generated songs survive container removal. Back up this volume/directory separately from setup exports. Connected updated browsers refresh their library on a catalogue-change message without reloading the audio page.
+
+## Rename, delete and restore library songs
+
+Select a song in the shared library, edit **Selected song name**, then click **Rename**. **Delete** asks for confirmation and removes the entry from the library. Open **Deleted songs**, select an entry and click **Restore song** to recover it. Both bundled songs and generated songs are supported. Renaming keeps the song ID, score and MIDI channel mapping.
+
+The API exposes `PATCH /api/songs/:id` with `{"name":"New name"}`, `DELETE /api/songs/:id`, `GET /api/songs/deleted`, and `POST /api/songs/:id/restore` with `{}`. These operations use existing API authentication and respond synchronously. Loaded deck copies, transport, mix and setup exports remain unchanged. Deleted IDs cannot be reused to overwrite the archived entry.
+
+Renames and deletion flags are saved atomically in `app/data/songs/.catalogue.json` (or the directory set by `ALGORAVE_SONG_DATA_DIR`). Bundled files and generated scores stay intact. Deletion is recoverable through the UI or Restore Song transform; this feature does not permanently erase files. Back up the whole data directory, including its metadata file. Updated browsers refresh the library on catalogue-change messages.

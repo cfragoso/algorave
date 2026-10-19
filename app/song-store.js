@@ -1,11 +1,34 @@
-import {mkdir, readdir, readFile, writeFile, link, unlink} from 'node:fs/promises';
+import {mkdir, readdir, readFile, writeFile, link, unlink, rename} from 'node:fs/promises';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {validateSong} from './model.js';
 import {withSource, replaceSource} from './public/source.js';
 
 export function createSongStore(directory) {
+  let changes = Promise.resolve();
+  const readChanges = async () => {
+    try { return JSON.parse(await readFile(path.join(directory,'.catalogue.json'),'utf8')); }
+    catch(error) { if(error.code==='ENOENT') return {}; throw error; }
+  };
   return {
+    async apply(songs) {
+      const edits = await readChanges();
+      return songs.filter(song=>!edits[song.id]?.deleted).map(song=>edits[song.id]?.name ? {...song,name:edits[song.id].name} : song);
+    },
+    async deleted(songs) {
+      const edits=await readChanges();
+      return songs.filter(song=>edits[song.id]?.deleted).map(song=>({...song,...(edits[song.id].name?{name:edits[song.id].name}:{}),deleted:true}));
+    },
+    change(id, patch) {
+      const operation = changes.catch(()=>{}).then(async()=>{
+        const edits=await readChanges();edits[id]={...edits[id],...patch};
+        await mkdir(directory,{recursive:true});
+        const temporary=path.join(directory,'.'+randomUUID()+'.tmp');
+        try {await writeFile(temporary,JSON.stringify(edits,null,2)+'\n',{flag:'wx'});await rename(temporary,path.join(directory,'.catalogue.json'));}
+        finally {await unlink(temporary).catch(error=>{if(error.code!=='ENOENT')throw error;});}
+      });
+      changes=operation;return operation;
+    },
     async list() {
       let files;
       try { files = await readdir(directory); } catch (error) { if(error.code==='ENOENT') return []; throw error; }

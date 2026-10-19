@@ -26,7 +26,8 @@ const equal = (a, b) => {
 };
 
 export async function createControlServer({token = '', timeoutMs = 10000, initialSong, initialRevision = 0, initialSession, setupDir = process.env.ALGORAVE_DATA_DIR || path.join(appDir,'data','setups'), songDir = process.env.ALGORAVE_SONG_DATA_DIR || path.join(appDir,'data','songs')} = {}) {
-  const songs = new Map();
+  const songs = new Map(), catalogueSource = new Map();
+  let defaultSong;
   const generatedSongs = createSongStore(songDir);
   const refreshSongs = async () => {
     const updated=new Map();
@@ -34,6 +35,7 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
     try {
       const song = validateSong(JSON.parse(await readFile(path.join(root, 'songs', name, 'session.json'), 'utf8')));
       updated.set(song.id, withSource(song));
+      if(song.id==='live-set')defaultSong=withSource(song);
     } catch (error) {
       if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error;
     }
@@ -42,11 +44,12 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
       if(updated.has(song.id))throw new Error('Stored song ID collides with a bundled song');
       updated.set(song.id, withSource(song));
     }
-    songs.clear();for(const [id,song] of updated)songs.set(id,song);
+    catalogueSource.clear();for(const [id,song] of updated)catalogueSource.set(id,song);
+    songs.clear();for(const song of await generatedSongs.apply([...updated.values()]))songs.set(song.id,song);
   };
   await refreshSongs();
   const decks = Object.fromEntries(['A','B'].map(id => [id, {
-    song: id === 'A' && initialSong ? withSource(validateSong(initialSong)) : structuredClone(songs.get('live-set')),
+    song: id === 'A' && initialSong ? withSource(validateSong(initialSong)) : structuredClone(songs.get('live-set') || defaultSong),
     revision: id === 'A' ? initialRevision : 0, player: null, pending: null, playback: false, telemetry: null, telemetryAt: 0, stripValues:defaultStrip(),
   }]));
   const setups=createSetupStore(setupDir);let currentSetup={id:null,name:'Untitled set'},ui=defaultUi();
@@ -145,10 +148,25 @@ export async function createControlServer({token = '', timeoutMs = 10000, initia
         if(req.method==='GET' && url.pathname==='/api/session/state')return json(res,200,session());
         if(req.method==='POST' && ['/api/songs','/api/songs/generate'].includes(url.pathname)){
           const bodyInput=await body(req),input=url.pathname==='/api/songs/generate'?generateSong(bodyInput.phrase):bodyInput;await refreshSongs();
-          if(songs.has(input?.id))return json(res,409,{error:'Song ID already exists'});
+          if(catalogueSource.has(input?.id))return json(res,409,{error:'Song ID already exists'});
           let saved;
           try {saved=await generatedSongs.save(input);} catch(error) {if(error.code==='EEXIST')return json(res,409,{error:'Song ID already exists'});throw error;}
           songs.set(saved.id,saved);ws.clients.forEach(client=>send(client,{type:'catalogueChanged'}));return json(res,201,saved);
+        }
+        if(req.method==='GET'&&url.pathname==='/api/songs/deleted'){await refreshSongs();return json(res,200,await generatedSongs.deleted([...catalogueSource.values()]));}
+        const songMatch=url.pathname.match(/^\/api\/songs\/([a-z0-9][a-z0-9-]{0,95})(\/restore)?$/);
+        if(songMatch && (!songMatch[2]&&['PATCH','DELETE'].includes(req.method)||req.method==='POST'&&songMatch[2])){
+          await refreshSongs();const id=songMatch[1],original=catalogueSource.get(id);
+          if(!original || !songMatch[2]&&!songs.has(id))return json(res,404,{error:'Song is not in the library'});
+          const current=songs.get(id)||original;let deleted=false;
+          if(req.method==='PATCH'){
+            const input=await body(req);
+            if(typeof input.name!=='string'||!input.name.trim()||input.name.trim().length>120)throw new Error('Song name must contain 1–120 characters');
+            await generatedSongs.change(id,{name:input.name.trim()});
+          }else if(req.method==='DELETE'){await generatedSongs.change(id,{deleted:true});deleted=true;}
+          else await generatedSongs.change(id,{deleted:false});
+          await refreshSongs();ws.clients.forEach(client=>send(client,{type:'catalogueChanged'}));
+          return json(res,200,deleted?{...current,deleted:true}:songs.get(id));
         }
         if(req.method==='GET' && url.pathname==='/api/songs'){await refreshSongs();return json(res,200,[...songs.values()]);}
         if(req.method==='GET' && url.pathname.startsWith('/api/jobs/')){

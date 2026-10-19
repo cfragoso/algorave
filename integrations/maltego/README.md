@@ -71,6 +71,14 @@ Returned engine, deck and song entities also carry explicit public image URLs as
 
 Rebuild the pack after entity-definition changes with `.venv/bin/python build_entity_pack.py`. Archive contents and mappings are tested; the final import/rendering step must be checked in the user's Desktop client.
 
+## Rename, delete and restore songs
+
+On `maltego.algorave.song`, run **Rename Song** and enter the new name (1–120 characters). **Delete Song** removes the song from the library after its confirmation setting is set to true. The original graph entity is retained and marked `(deleted)` with `algorave.deleted=true`; run **Restore Song** to recover it.
+
+These actions work for bundled and generated songs. Song IDs stay stable, so a rename updates the same graph node. Deleted entries disappear from **To Songs** and cannot be loaded by the library until restored. Other existing graph nodes remain snapshots until refreshed. Neither action changes a score already loaded in a deck, including its displayed name; reload it to use the renamed library entry.
+
+Deletion is recoverable, not a permanent file purge. Names and deletion flags persist in the engine's `app/data/songs/.catalogue.json`; bundled source files and generated scores remain intact. Back up the whole song data directory. The UI offers the same controls and a **Deleted songs → Restore song** list.
+
 ## Generate a song from a Phrase
 
 Run **Generate Song [Algorave]** on a standard `maltego.Phrase`. For example, use `Dark deep house at 122 BPM` or `Uplifting trance at 140 BPM`. The transform calls the same `POST /api/songs/generate` endpoint as the library's **New song** form and returns a saved song entity. Use **Load into Deck** on that result when ready.
@@ -96,7 +104,7 @@ Run **To Mixer** on the engine to obtain `maltego.algorave.mixer`, then **To Cha
 
 Master volume and crossfader affect the shared output even when invoked on a channel entity. Channel volume and EQ affect only that channel. These transforms return the selected entity with acknowledged mixer values; other graph nodes remain snapshots until extracted/refreshed again. They preserve the output-device selection and controls not included in the change.
 
-Refresh the HTTPS seed for all 22 transforms. The new `desktop/algorave-mixer.mtz` adds both mixer entity types to the existing icon and overlay pack.
+Refresh the HTTPS seed for all 25 transforms. The new `desktop/algorave-mixer.mtz` adds both mixer entity types to the existing icon and overlay pack.
 
 ## Perform from the graph
 

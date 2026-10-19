@@ -50,3 +50,42 @@ test('shared generation endpoint saves to the same library and does not alter th
  assert.deepEqual((await call('GET','/api/session/state')).body.decks,before);
  assert.equal((await call('POST','/api/songs/generate',{phrase:''})).status,400);
 });
+
+test('rename, delete and restore support bundled and generated songs without changing loaded decks',async t=>{
+ const {call,song,directory}=await fixture(t);
+ await call('POST','/api/songs',song);
+ const before=(await call('GET','/api/session/state')).body.decks;
+ for(const id of ['live-set',song.id]){
+   const renamed=await call('PATCH','/api/songs/'+id,{name:'Renamed '+id});
+   assert.equal(renamed.status,200);assert.equal(renamed.body.name,'Renamed '+id);
+   const removed=await call('DELETE','/api/songs/'+id);
+   assert.equal(removed.status,200);assert.equal(removed.body.deleted,true);
+   assert.equal((await call('GET','/api/songs')).body.some(s=>s.id===id),false);
+   assert.ok((await call('GET','/api/songs/deleted')).body.some(s=>s.id===id&&s.name==='Renamed '+id));
+   assert.equal((await call('POST','/api/songs',{...song,id})).status,409);
+   assert.equal((await call('PATCH','/api/songs/'+id,{name:'Invalid while deleted'})).status,404);
+   const restored=await call('POST','/api/songs/'+id+'/restore',{});
+   assert.equal(restored.status,200);assert.equal(restored.body.name,'Renamed '+id);
+ }
+ assert.deepEqual((await call('GET','/api/session/state')).body.decks,before);
+ const store=createSongStore(directory),bundled=JSON.parse(await readFile(new URL('../../songs/live-set/session.json',import.meta.url)));
+ assert.notEqual(bundled.name,'Renamed live-set');
+ assert.equal((await store.apply([bundled]))[0].name,'Renamed live-set');
+});
+
+test('catalogue edits validate names, missing IDs and authentication',async t=>{
+ const {call}=await fixture(t,'edit-token');
+ for(const method of ['PATCH','DELETE'])assert.equal((await call(method,'/api/songs/live-set',{name:'Test'},'')).status,401);
+ for(const name of ['', ' ', 'x'.repeat(121),null])assert.equal((await call('PATCH','/api/songs/live-set',{name})).status,400);
+ assert.equal((await call('DELETE','/api/songs/missing')).status,404);
+ assert.equal((await call('POST','/api/songs/missing/restore',{})).status,404);
+});
+
+test('concurrent library name edits persist both changes',async t=>{
+ const {call}=await fixture(t);
+ const results=await Promise.all([call('PATCH','/api/songs/live-set',{name:'Concurrent A'}),call('PATCH','/api/songs/night-bus',{name:'Concurrent B'})]);
+ assert.ok(results.every(result=>result.status===200));
+ const songs=(await call('GET','/api/songs')).body;
+ assert.equal(songs.find(song=>song.id==='live-set').name,'Concurrent A');
+ assert.equal(songs.find(song=>song.id==='night-bus').name,'Concurrent B');
+});

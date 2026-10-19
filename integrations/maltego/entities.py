@@ -30,6 +30,7 @@ class Song(MaltegoEntity):
                           value='http://127.0.0.1:3000')
     TYPE_NAME = 'maltego.algorave.song'
     Config = config('Algorave Song', 'Algorave Songs', icon='song')
+    deleted: bool = MEF(name='algorave.deleted', matching_rule='loose', value=False, readonly=True)
     song_id: str = MEF(matching_rule='loose', name='algorave.song_id', readonly=True)
     song_name: str = MEF(matching_rule='loose', name='algorave.song_name', readonly=True)
     bpm: float = MEF(matching_rule='loose', name='algorave.bpm', readonly=True)

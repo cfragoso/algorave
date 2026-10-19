@@ -68,7 +68,7 @@ natively; its Dockerfile is intended for native Linux device passthrough.
 Navigate the engine, songs, decks and instruments from a Maltego graph, mute or
 unmute channels, and apply edited Strudel components through the app API.
 See [integrations/maltego/README.md](integrations/maltego/README.md) for installation,
-the HTTPS seed URL and the twenty-two available transforms.
+the HTTPS seed URL and the twenty-five available transforms.
 
 ## Current status
 
